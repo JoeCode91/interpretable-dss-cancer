@@ -1,0 +1,15 @@
+symbol,single_agent,dual_agent,source
+r_T+,2.7726e-3,2.78e-3,Cunningham / West
+r_TP,3.4657e-3,3.55e-3,Cunningham / West
+r_T-/+,6.6542e-3,6.65e-3,Cunningham / West
+r_T-/-,--,6.65e-3,West
+K_T+,(mu-u_a)*y_TP,(mu-u_a)*y_TP,Cunningham / West
+K_TP,1e4 - 9.9e3*u_a,1e4 / 10^(2*u_a),Cunningham / West
+K_T-/+,1e4,1e4,Cunningham / West
+K_T-/-,--,6e3,West
+mu,1.5,1.5,Cunningham / West
+c_T+,c_TP,c_T-/+,--,1.5,West
+c_T-/-,--,0,West
+lambda (= d_v),0,5e-4,West
+delta,--,0.05,West
+N_max,8e4,8e4,calibrated, Sec 6.5.1

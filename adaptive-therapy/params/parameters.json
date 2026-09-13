@@ -1,0 +1,115 @@
+{
+  "note": "Parameters of the two instantiations, as implemented. Matches Table tab:rep_parameters of the thesis.",
+  "shared": {
+    "mu": 1.5,
+    "N_max": 80000.0,
+    "delta_competition": 0.05
+  },
+  "single_agent": {
+    "source": "Cunningham et al.",
+    "populations": [
+      "T+",
+      "TP",
+      "T-"
+    ],
+    "r": [
+      0.0027726,
+      0.0034657,
+      0.0066542
+    ],
+    "alpha": [
+      [
+        1,
+        0.7,
+        0.8
+      ],
+      [
+        0.4,
+        1,
+        0.6
+      ],
+      [
+        0.5,
+        0.9,
+        1
+      ]
+    ],
+    "K": {
+      "T+": "(mu - u_a) * y_TP",
+      "TP": "1e4 - 9.9e3*u_a  [linear]",
+      "T-": 10000.0
+    },
+    "c": [
+      0,
+      0,
+      0
+    ],
+    "lambda": 0.0,
+    "y0": [
+      560.36,
+      747.59,
+      47.1
+    ]
+  },
+  "dual_agent": {
+    "source": "West et al.",
+    "populations": [
+      "T+",
+      "TP",
+      "T-/+",
+      "T-/-"
+    ],
+    "r": [
+      0.00278,
+      0.00355,
+      0.00665,
+      0.00665
+    ],
+    "alpha": [
+      [
+        1,
+        0.7,
+        0.8,
+        0.7000000000000001
+      ],
+      [
+        0.4,
+        1,
+        0.5,
+        0.4
+      ],
+      [
+        0.6,
+        0.9,
+        1,
+        0.9
+      ],
+      [
+        0.5499999999999999,
+        0.85,
+        0.95,
+        1
+      ]
+    ],
+    "alpha_rule": "alpha[i][3] = alpha[i][2] - 2*delta for i != 3 ; alpha[3][j] = alpha[2][j] - delta for j != 3",
+    "K": {
+      "T+": "(mu - u_a) * y_TP",
+      "TP": "1e4 / 10**(2*u_a)  [exponential]",
+      "T-/+": 10000.0,
+      "T-/-": 6000.0
+    },
+    "c": [
+      1.5,
+      1.5,
+      1.5,
+      0.0
+    ],
+    "lambda": 0.0005,
+    "y0": [
+      2062.0,
+      2617.0,
+      3.97e-11,
+      3.97e-12
+    ]
+  }
+}
