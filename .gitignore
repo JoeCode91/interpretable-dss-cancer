@@ -1,0 +1,80 @@
+# =============================================================================
+#  interpretable-dss-cancer -- .gitignore
+# =============================================================================
+#  Este repositorio contiene SOLO codigo. Ni datos de pacientes, ni pesos
+#  entrenados, ni resultados pesados. Lo que sigue no es una lista de
+#  conveniencia: cada bloque esta aqui por una razon.
+# =============================================================================
+
+# --- 1. DATOS DE PACIENTES -- NUNCA, BAJO NINGUNA CIRCUNSTANCIA ---------------
+#  Los datos del SGSSS no son publicables. No son datos del autor para
+#  liberarlos: estan bajo el aval FM-CIE-030920 y bajo custodia del SGSSS, y
+#  las secuencias longitudinales de diagnosticos mas municipio son
+#  reidentificables aunque se retire el identificador.
+*.h5
+*.hdf5
+*.parquet
+*.feather
+**/Datos_Modelo/
+**/Proyecto_CC_Batches/
+**/MatChar/
+
+# --- 2. PESOS ENTRENADOS -----------------------------------------------------
+#  Un modelo entrenado sobre datos de pacientes puede filtrar. Se declaran
+#  disponibles a peticion razonable, sujetos a los terminos del aval.
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+checkpoints/
+**/Modelos/
+**/Modelos_V*/
+
+# --- 3. CREDENCIALES ---------------------------------------------------------
+#  telegram_notifier.py lleva token de bot. No debe viajar.
+telegram_notifier.py
+.env
+*.key
+*_secret*
+credentials*
+
+# --- 4. ENTORNOS VIRTUALES ---------------------------------------------------
+#  Hay un venv copiado dentro de XAI_Model en el arbol de trabajo: el conteo
+#  bruto da 13.143 .py frente a 82 de codigo propio. No debe entrar aqui.
+venv/
+.venv/
+env/
+site-packages/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# --- 5. RESULTADOS Y ARTEFACTOS PESADOS --------------------------------------
+#  Se regeneran corriendo el codigo. Las cifras publicadas estan en la tesis.
+*.npz
+*.npy
+*.pkl
+logs/
+logs_base/
+**/Resultados/
+**/resultados/
+**/Datos/
+*.log
+
+# --- 6. FIGURAS GENERADAS ----------------------------------------------------
+#  Las que ilustran el README si van; las de salida de las corridas no.
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!**/README_assets/**
+
+# --- 7. RUIDO DE PYTHON Y DEL SISTEMA ----------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.DS_Store
+Thumbs.db
+desktop.ini
