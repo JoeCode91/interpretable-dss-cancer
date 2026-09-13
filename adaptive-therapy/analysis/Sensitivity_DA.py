@@ -2,8 +2,10 @@
 Sensitivity_DA.py - Sensitivity Analysis for Dual-Agent Replicator-MPC
 
 REPRODUCES IN THE THESIS
-    Base dual-agent sensitivity sweep.
-    [TO CONFIRM: mapping to the thesis table has not been verified by the author.]
+    Dual-agent sweeps over prediction horizon, blocking window and objective weights.
+    Phase 3, the five-configuration weight sweep at H_p=140 and B_w=80, is what
+    Table tab:rep_da_gamma reports and what the chapter refers to when it states that
+    the dual-agent finding holds across five weighting configurations.
 
 PROVENANCE
     Copied verbatim from the working tree of the thesis

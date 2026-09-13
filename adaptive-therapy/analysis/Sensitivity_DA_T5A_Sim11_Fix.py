@@ -2,8 +2,9 @@
 Sensitivity_DA_T5A_Sim11_Fix.py - Re-run Sim11 with CORRECT Bw=1
 
 REPRODUCES IN THE THESIS
-    Dual-agent EMO-Opt sweep, block T5A: Table tab:rep_da_full.
-    [TO CONFIRM: mapping to the thesis table has not been verified by the author.]
+    Dual-agent EMO-Opt sweep, simulation 11: contributes to Table tab:rep_da_full.
+    Corrects the original T5A run, which used B_w=50 for simulation 11 where the
+    scenario specifies no blocking (B_w = 1).
 
 PROVENANCE
     Copied verbatim from the working tree of the thesis

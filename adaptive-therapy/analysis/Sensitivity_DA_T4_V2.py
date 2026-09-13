@@ -2,8 +2,9 @@
 Sensitivity_DA_T4.py - Table 4 Sims 1-10: DA Without Active-Set, Bw=1
 
 REPRODUCES IN THE THESIS
-    Dual-agent IV-Opt sweep, 10 scenarios x 4 horizons: Table tab:rep_da_ivopt.
-    [TO CONFIRM: mapping to the thesis table has not been verified by the author.]
+    Dual-agent IV-Opt sweep, simulations 1-10: Table tab:rep_da_ivopt.
+    IV-Opt is the formulation without active-set constraints and without move
+    blocking (B_w = 1), which is what this script runs.
 
 PROVENANCE
     Copied verbatim from the working tree of the thesis

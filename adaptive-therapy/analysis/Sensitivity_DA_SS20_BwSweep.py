@@ -2,8 +2,8 @@
 Sensitivity_DA_SS20_BwSweep.py - SS20 Bw sweep (Hp=140 fixed)
 
 REPRODUCES IN THE THESIS
-    Blocking-window sweep for scenario SS 20: Table tab:rep_bw_sweep.
-    [TO CONFIRM: mapping to the thesis table has not been verified by the author.]
+    Blocking-window sweep for scenario SS 20 at H_p=140, six values of B_w:
+    Table tab:rep_bw_sweep.
 
 PROVENANCE
     Copied verbatim from the working tree of the thesis

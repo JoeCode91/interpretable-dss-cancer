@@ -2,8 +2,8 @@
 Sensitivity_DA_T5B_V2.py - Table 5 Sims 15-20: CORRECTED configs matching PLoS ONE
 
 REPRODUCES IN THE THESIS
-    Dual-agent EMO-Opt sweep, block T5B: Tables tab:rep_da_full and tab:rep_da_gamma.
-    [TO CONFIRM: mapping to the thesis table has not been verified by the author.]
+    Dual-agent EMO-Opt sweep, simulations 15-20: Table tab:rep_da_full, and the
+    Rep-MPC column of Table tab:rep_da_gamma.
 
 PROVENANCE
     Copied verbatim from the working tree of the thesis
