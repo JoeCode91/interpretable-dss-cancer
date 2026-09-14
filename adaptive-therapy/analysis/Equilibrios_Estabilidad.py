@@ -11,7 +11,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-=========================================================================
  Equilibrios y estabilidad de los modelos LV y replicador  --  R1-7(c)
 =========================================================================
 
@@ -69,6 +68,20 @@ PROVENANCE
 
  Autor: Johan S. Pena-Campos   |   Generado para R1-7(c), septiembre 2026
 =========================================================================
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    This file was drafted with generative AI (Claude, Anthropic) and then reviewed,
+    corrected and validated by the author, who takes full responsibility for it. This is
+    a stronger statement than the one carried by most files in this repository, which
+    were written by the author and only reviewed with AI assistance; it is recorded
+    separately so that the distinction is not lost. The research question this script
+    answers, and the interpretation of what it returns, are the author's.
 """
 
 import argparse

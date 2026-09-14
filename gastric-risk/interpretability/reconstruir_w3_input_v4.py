@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-W3 input-space reconstruction + comparison with W4 (correccion #25, Cap. 4).
 
 A diferencia de W4 (cuyos 64 canales post-pool son no-espaciales y requieren el
 NObSP-CAM para localizarse en el espacio de entrada), W3 ya atribuye DIRECTAMENTE
@@ -27,6 +26,20 @@ Ligero: trabaja sobre los .npz ya generados (sin GPU, sin modelo).
 Salidas en nobsp_results_v4_traintest/:
   - recon_w3_input_profile.npz          perfil W3 (12 -> 100) + W4
   - recon_w3_vs_w4_profile.{png,pdf}    overlay comparativo
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 from pathlib import Path
 import numpy as np

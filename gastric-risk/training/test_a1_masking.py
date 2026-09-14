@@ -12,7 +12,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Test empirico A1: X_mascaras NO afecta las predicciones del modelo V2?
 
 Si las predicciones con mascara real, mascara cero y mascara uno son
 IDENTICAS hasta la precision de float32, queda probado empiricamente que
@@ -34,6 +33,20 @@ Salida esperada bajo A1 verdadero:
 Autor: Johan S. Pena-Campos
 Fecha: 2026-05-05
 Sesion: 23 (auditoria pre V3.1)
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 # Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a

@@ -11,11 +11,24 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Replot DA V3 results from saved .npz with improved figure (2x2):
   - Panel [0,0]: Cell Dynamics (linear, all 4 populations, T^{-/-} dashed)
   - Panel [0,1]: Population Frequencies (Replicator)
   - Panel [1,0]: Treatment Schedule (Abi blue + Doc green, combined)
   - Panel [1,1]: Tumor Burden
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import numpy as np

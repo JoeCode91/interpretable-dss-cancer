@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Test V3.1 -- validacion del masking ANTES de lanzar entrenamiento
 
 Verifica que el modelo V3.1 con masking explicito:
   (a) construye sin errores
@@ -28,6 +27,20 @@ Si el test pasa, V3 esta listo para entrenamiento.
 
 Autor: Johan S. Pena-Campos
 Fecha: 2026-05-05
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import os

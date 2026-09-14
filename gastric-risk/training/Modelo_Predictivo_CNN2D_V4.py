@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Modelo_Predictivo_CNN2D_V4 -- training script para CNN 2D V4 (Camino 2,
 refinamiento Alex 18 May 2026 sobre tensor (1541, 100) sin overlap, sin masking).
 
 Diferencias respecto a Modelo_Predictivo_CNN2D.py (Camino 1):
@@ -23,6 +22,20 @@ Diferencias respecto a Modelo_Predictivo_CNN2D.py (Camino 1):
 
 Autor: Johan S. Pena-Campos, Cap. 4 Camino 2 V4
 Fecha: 2026-05-18 (sesion 29)
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 # Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a

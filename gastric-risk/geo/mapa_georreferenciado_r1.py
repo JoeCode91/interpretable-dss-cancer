@@ -11,7 +11,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-R1 -- Mapa georreferenciado de la contribucion NObSP geografica (solicitud S1 de
 Alex, 26 May): "mostrar en un mapa de georeferencia donde son las zonas".
 
 Combina la contribucion NObSP de latitud + longitud (W1, clase cancer) y la
@@ -37,6 +36,20 @@ Salidas en nobsp_results_v4/:
     pub_w1_geo_map.{png,pdf}        mapa de pacientes coloreados por contribucion geo
     pub_w1_geo_dept.{png,pdf}       mapa por departamento (centroides)
     r1_geo_por_departamento.csv     tabla dpto: contrib media, n_pac, n_cancer
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 # Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a

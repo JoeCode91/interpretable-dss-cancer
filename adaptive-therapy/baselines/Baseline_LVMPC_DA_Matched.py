@@ -11,8 +11,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Baseline_LVMPC_DA_Matched.py -- baseline LV-MPC dual-agent con el objetivo EMPAREJADO
-====================================================================================
 POR QUE
     El Revisor 1 (punto R1-5) pregunta que respalda atribuir la diferencia
     dual-agente al modelo interno y no a la ponderacion. Al comparar las dos
@@ -87,6 +85,20 @@ QUE MIRAR AL TERMINAR
     Las exposiciones medias u_a y u_d. El Rep-MPC calibrado da u_media = 0.067.
     Si este baseline emparejado se le acerca, la reduccion del 89% era ponderacion.
     Si se mantiene en el orden de 0.59 como el baseline original, era el modelo.
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    This file was drafted with generative AI (Claude, Anthropic) and then reviewed,
+    corrected and validated by the author, who takes full responsibility for it. This is
+    a stronger statement than the one carried by most files in this repository, which
+    were written by the author and only reviewed with AI assistance; it is recorded
+    separately so that the distinction is not lost. The research question this script
+    answers, and the interpretation of what it returns, are the author's.
 """
 
 

@@ -11,7 +11,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-R3 -- Ingenieria inversa de diagnosticos (CIE-10) y procedimientos (CUPS) en los
 eventos de los pacientes con cancer (solicitud S3 de Alex, 26 May).
 
 Cada evento del tensor V4 codifica [emb_diag(768), emb_proc(768), temporal(5)].
@@ -30,6 +29,20 @@ Salidas en nobsp_results_v4/:
   - r3_procedimientos_cancer.csv   codigos proc enriquecidos en cancer
   - r3_eventos_recientes_cancer.csv  ultimos K eventos por paciente cancer (decodificados)
   - r3_resumen.txt                 resumen legible
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import csv

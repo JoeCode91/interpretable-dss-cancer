@@ -13,8 +13,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Sensitivity_DA_T5A_Sim11_Fix.py - Re-run Sim11 with CORRECT Bw=1
-=================================================================
 Fix: Original T5A had Sim11 with Bw=50 (bug), should be Bw=1 (no blocking).
 Ref: PLoS ONE paper tab:Exp_Art2_P2, SS11 has no Bw specified = Bw=1.
 
@@ -25,8 +23,21 @@ Usage: python Sensitivity_DA_T5A_Sim11_Fix.py [--test]
 Output: Sensitivity_DA_T5A_Sim11_Fix/{Datos,Imagenes}/
 
 Based on: Sensitivity_DA_T5A.py (with Bw=1 correction)
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-03-25
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

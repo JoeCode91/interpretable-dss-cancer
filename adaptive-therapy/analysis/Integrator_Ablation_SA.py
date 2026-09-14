@@ -11,8 +11,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Integrator_Ablation_SA.py -- RK4 vs Euler ablation for the single-agent Rep-MPC
-==============================================================================
 PURPOSE
     Quantify, in isolation, how much of the Rep-MPC result depends on the
     discretization used for the *prediction model* inside the NLP.
@@ -65,6 +63,20 @@ COST ESTIMATE (from the stored RK4 sweep times for Sim1)
     Hp=50 ~ 3300 s RK4 + ~1100 s Euler
     Hp=80 ~ 6145 s RK4 + ~2050 s Euler
     => ~2.3 h wall-clock if the three Hp run in parallel.
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import os

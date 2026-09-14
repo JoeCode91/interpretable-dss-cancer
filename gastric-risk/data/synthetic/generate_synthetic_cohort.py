@@ -58,8 +58,30 @@ USAGE
                   make the task artificially easy. The default leaves it learnable but
                   unimpressive, which is the honest choice for a schema-level surrogate.
 
-Author: Johan S. Pena-Campos. Released under the MIT licence with the rest of the
-repository; the synthetic data it produces is CC BY 4.0.
+LICENCE
+    MIT, with the rest of the repository; the synthetic data it produces is CC BY 4.0.
+
+REPRODUCES IN THE THESIS
+    Nothing directly. This script exists so that the pipeline of Chapter 4 can be run
+    without the restricted clinical data, which are not distributed.
+
+PROVENANCE
+    Written for this repository; it has no counterpart in the working tree of the thesis.
+    See CHANGES-FROM-THESIS.md at the repository root.
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    This file was drafted with generative AI (Claude, Anthropic) and then reviewed,
+    corrected and validated by the author, who takes full responsibility for it. This is
+    a stronger statement than the one carried by most files in this repository, which
+    were written by the author and only reviewed with AI assistance; it is recorded
+    separately so that the distinction is not lost. The research question this script
+    answers, and the interpretation of what it returns, are the author's.
 """
 
 import argparse

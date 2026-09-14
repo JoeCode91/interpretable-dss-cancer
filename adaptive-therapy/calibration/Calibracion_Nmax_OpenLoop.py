@@ -11,8 +11,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Calibracion_Nmax_OpenLoop.py - N_max Sweep for Replicator-LV Open-Loop Calibration
-====================================================================================
 Sweeps N_max values and compares Lotka-Volterra vs Replicator+ZF open-loop dynamics
 (u=0) to find the optimal N_max that minimizes discrepancy.
 
@@ -24,8 +22,21 @@ Mathematical basis:
   Difference:      -p_i * phi_bar, where phi_bar = sum(p_j * f_j)
   When N_max >> N_total: p_j small => phi_bar small => Replicator ~ LV
 
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-02-25
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

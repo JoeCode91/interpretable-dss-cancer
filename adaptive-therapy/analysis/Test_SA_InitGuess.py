@@ -11,8 +11,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Test_SA_InitGuess.py - Test hypothesis: u_prev=0.0 fixes Hp>=80 divergence
-==========================================================================
 Quick test: runs Sim1_Baseline with Hp=80 using u_prev=0.0 (instead of 1.0).
 
 Hypothesis:
@@ -33,8 +31,21 @@ Usage:
   python Test_SA_InitGuess.py --also-50    # Also run Hp=50 for comparison
 
 Based on: Sensitivity_SA_V2.py
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-03-23
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

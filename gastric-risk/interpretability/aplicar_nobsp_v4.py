@@ -13,7 +13,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-NObSP V4 (Camino 2 -- arquitectura CNN 2D Alex 18 May 2026) -- pipeline en 4 puntos.
 
 Cuatro wrappers aplicados al modelo CNN2DModelV4 entrenado sobre HDF5 V4
 (tensor (1541, 100) por paciente, sin overlap, sin masking, demograficos 15 dims).
@@ -42,6 +41,20 @@ Costos esperados (RTX 3060 Ti, N_SAMPLES=500):
 
 Autor: Johan S. Pena-Campos, Cap. 4 V4 Camino 2
 Fecha: 2026-05-18 (sesion 29)
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import csv

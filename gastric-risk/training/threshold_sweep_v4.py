@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Threshold sweep V4 (A6) -- Cap. 4 NObSP, CNN 2D V4 Camino 2 Alex.
 
 El run de training V4 (modelo_cnn2d_v4_pytorch_20260519_043106) guardo
 evaluacion.json con metricas en thresholds 0.5 y 0.3 unicamente. Este
@@ -27,6 +26,20 @@ Uso (en la PowerShell con D:\venv_torch_cu121 activado):
 
 Autor: Johan S. Pena-Campos
 Fecha: 2026-05-21 (sesion 33, A6)
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 import os
 import sys

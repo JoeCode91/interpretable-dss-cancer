@@ -12,8 +12,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Sensitivity_DA_SS20_BwSweep.py - SS20 Bw sweep (Hp=140 fixed)
-==============================================================
 Paper PLoS ONE tab:Exp_Art2_P2, SS20:
   gamma_1=2.5e-9, gamma_2=0.1, gamma_3=0.45, gamma_4=0, gamma_5=0.2
   Hp=140, Bw=[20, 50, 80, 100, 140, 200] -> 6 configs
@@ -25,8 +23,21 @@ Usage: python Sensitivity_DA_SS20_BwSweep.py [--test]
 Output: Sensitivity_DA_SS20_BwSweep/{Datos,Imagenes}/
 
 Based on: Sensitivity_DA_T5B.py
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-03-25
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

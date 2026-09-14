@@ -11,7 +11,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-R2 -- NObSP sobre TRAIN + TEST (solicitud S2 de Alex): "estas curvas las puedes
 sacar con training tambien... es ver que aprendio el modelo".
 
 Reutiliza los wrappers y run_nobsp de aplicar_nobsp_v4.py (sin tocarlo). Construye
@@ -26,6 +25,20 @@ Salidas en nobsp_results_v4_traintest/:
 
 Ejecutar (GPU, ~4-5 h por el wrapper W2):
     python -u aplicar_nobsp_v4_r2.py
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 # Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a

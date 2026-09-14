@@ -11,8 +11,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Baseline_LVMPC_DA_Rerun.py -- re-corrida instrumentada del baseline LV-MPC dual-agent
-====================================================================================
 POR QUE
     La Tabla 3 del articulo CBM (y la tabla equivalente del Cap. 6 del libro) da,
     para el baseline LV-MPC dual-agent, KPI-1a = 8012 y KPI-1b = 9126 junto con
@@ -65,6 +63,20 @@ SALIDA
     Baseline_LVMPC_DA/Datos/Baseline_DA_Exp<N>_Hp140_Bw80.npz
     Baseline_LVMPC_DA/Baseline_Summary.csv
     y un resumen impreso al final del log.
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import os

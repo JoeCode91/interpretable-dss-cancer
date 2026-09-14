@@ -12,8 +12,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Sensitivity_DA_T5B_V2.py - Table 5 Sims 15-20: CORRECTED configs matching PLoS ONE
-=====================================================================================
 V2 fixes config mismatch in Sims 16, 17, 18 relative to the published paper
 (BioModels_PLoSOne_251029.tex, tab:Exp_Art2_P2).
 
@@ -44,8 +42,21 @@ Runs on: Home PC (overnight)
 Usage: python Sensitivity_DA_T5B_V2.py [--test] [--sims 16,17,18]
 
 Based on: Sensitivity_DA_T5B.py (V1)
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-03-24
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

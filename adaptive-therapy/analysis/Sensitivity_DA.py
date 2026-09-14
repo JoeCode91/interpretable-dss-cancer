@@ -14,8 +14,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Sensitivity_DA.py - Sensitivity Analysis for Dual-Agent Replicator-MPC
-======================================================================
 Performs systematic parameter sweeps for DA (West, 4 pop, Abi+Doc):
   Phase 1: Hp sweep [20, 50, 80, 100, 140] with Bw=80, baseline weights
   Phase 2: Bw sweep [20, 50, 80, 100] with Hp=140, baseline weights
@@ -29,8 +27,21 @@ Output (in Sensitivity_DA/ folder):
 Note: Bw=1 is extremely expensive (~12 hours). Set INCLUDE_BW1=True to enable.
 
 Based on: MPC_Replicator_DA_V3.py
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-03
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

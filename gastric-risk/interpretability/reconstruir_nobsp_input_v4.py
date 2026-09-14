@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-R4 -- Reconstruccion NObSP al espacio de entrada (solicitud S4 de Alex, 26 May).
 
 Toma las contribuciones por canal de W4 (post-pool, 64 canales del ultimo bloque
 conv) calculadas por aplicar_nobsp_v4.py y las proyecta de vuelta sobre el
@@ -28,6 +27,20 @@ Salidas en nobsp_results_v4/:
   - recon_input_cam_diff.{png,pdf}            (cancer - no_cancer) discriminante
   - recon_input_cam_ej{1,2}.{png,pdf}         ejemplos individuales cancer
   - recon_input_cam.npz                        CAMs crudos (192x12) + upsample medios
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import glob

@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-CAM por paciente sobre base balanceada COMPLETA (todos los canceres + no-cancer aleatorios).
 
 Pregunta del usuario: en vez de las 500 perturbaciones de W2, usar pacientes REALES.
 Metodo: NObSP-CAM por paciente (reusa los beta_c de W4 ya obtenidos en
@@ -24,6 +23,20 @@ Salidas en nobsp_results_v4_traintest/:
   - cam_per_patient_heatmap.{png,pdf}        heatmap por paciente (cancer arriba / no-cancer abajo)
   - cam_per_patient_mean_profiles.{png,pdf}  perfiles medios cancer vs no-cancer + ocupacion
   - cam_per_patient.npz                       datos crudos
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 import glob
 from pathlib import Path

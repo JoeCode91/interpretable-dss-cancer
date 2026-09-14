@@ -10,7 +10,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Validacion de los beta de NObSP: convergencia vs numero de probe points.
 
 Para cada wrapper (W4=64 dims, W3=12, W2=100) corre NObSP con n_probe creciente
 y mide si los beta (importancia por feature, clase cancer) se ESTABILIZAN:
@@ -19,6 +18,20 @@ correlacion de Pearson beta(n) vs beta(n_max). Tambien la COMPLETITUD
 ser ~1 (descomposicion aditiva del metodo alpha).
 
 Si beta(500) ~ beta(n_max) (r alto) y la completitud ~1, los beta a n=500 validados.
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 import sys
 import glob

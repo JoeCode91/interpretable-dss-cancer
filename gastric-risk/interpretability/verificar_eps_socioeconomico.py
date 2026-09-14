@@ -12,7 +12,6 @@ PROVENANCE
     repository root.
 
 --------------------------------------------------------------------------
-Verificacion del insight socioeconomico de EPS (NObSP).
 
 Pregunta: la tasa alta de cancer de EPS017 (Famisanar, 58% de casos) refleja un
 efecto socioeconomico/acceso GENUINO del asegurador, o es un PROXY de edad +
@@ -24,6 +23,20 @@ Bogota). Si el exceso de EPS017 sobrevive la estratificacion -> efecto genuino;
 si desaparece -> confound de edad/region.
 
 Solo datos crudos del cohorte (MatChar_Gen). No nombra aseguradoras en salidas.
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 import glob
 from pathlib import Path

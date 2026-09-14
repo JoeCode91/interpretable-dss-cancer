@@ -13,8 +13,6 @@ PROVENANCE
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Sensitivity_DA_T4.py - Table 4 Sims 1-10: DA Without Active-Set, Bw=1
-======================================================================
 Dual-Agent Replicator-MPC without active-set (no slack E), Bw=1 always.
 RK4 integration inside NLP for numerical stability.
 
@@ -56,8 +54,21 @@ Runs on: Home PC (128GB RAM)
 Usage: python Sensitivity_DA_T4.py [--test]
 
 Based on: Sensitivity_DA.py, MPC_Code_Art2.py (Cond_Opti 0-9), MPC_Replicator_DA_V3.py
-Author: Johan Pena-Campos, PhD Project
 Date: 2026-03
+
+AUTHORSHIP
+    Johan S. Pena-Campos
+    PhD thesis, "Interpretable Decision Support Systems for Early Cancer Diagnosis and
+    Personalized Treatment", Universitat Politecnica de Catalunya and Pontificia
+    Universidad Javeriana, 2026.
+
+USE OF AI ASSISTANCE
+    Generative AI (Claude, Anthropic) was used as a tool for code review, for verifying
+    the code against the results reported in the thesis, for detecting and correcting
+    errors, and for writing the documentation headers of this repository. The research
+    design, the models, the experiments and the interpretation of the results are the
+    author's. Every suggestion was reviewed by the author, who takes full responsibility
+    for the content of this file.
 """
 
 import casadi as cs

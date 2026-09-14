@@ -48,3 +48,32 @@ under the custody of the institutions that issued ethics approval
 FM-CIE-030920.
 
 Parameter tables and synthetic data are released under CC BY 4.0.
+
+--------------------------------------------------------------------------
+4. Authorship and use of AI assistance
+--------------------------------------------------------------------------
+
+All code in this repository is authored by
+
+    Johan S. Pena-Campos
+
+as part of the doctoral thesis "Interpretable Decision Support Systems for
+Early Cancer Diagnosis and Personalized Treatment" (UPC / PUJ, 2026), except
+where section 1 above states otherwise.
+
+Generative AI (Claude, Anthropic) was used as a tool for code review, for
+verifying the code against the results reported in the thesis, for detecting
+and correcting errors, and for writing the documentation of this repository.
+The research design, the models, the experiments and the interpretation of the
+results are the author's.
+
+Three files were drafted with AI assistance rather than merely reviewed with
+it, and say so in their own headers:
+
+    adaptive-therapy/analysis/Equilibrios_Estabilidad.py
+    adaptive-therapy/baselines/Baseline_LVMPC_DA_Matched.py
+    gastric-risk/data/synthetic/generate_synthetic_cohort.py
+
+The distinction is recorded here so that it is not lost. Every file was
+reviewed by the author, who takes full responsibility for the content of this
+repository.
