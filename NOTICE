@@ -22,10 +22,8 @@ inside pruning_MNIST.ipynb and pruning_CIFAR10.ipynb are
 
 reproduced here with the author's permission.
 
-    >>> PENDING: the licence under which these functions are released has not
-    >>> yet been fixed by their author. Until it is, they are included by
-    >>> permission only. Apache-2.0 is proposed, matching the licence the same
-    >>> author already chose for nobsp_lib.
+and released by him under the Apache License 2.0, matching the licence he
+already chose for nobsp_lib. A copy of that licence is in LICENSE-Apache-2.0.
 
 --------------------------------------------------------------------------
 2. nobsp_lib is a dependency, not part of this repository
