@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the thesis and the publication corresponding to the part used."
+type: software
+title: "interpretable-dss-cancer"
+abstract: >-
+  Code accompanying the doctoral thesis "Interpretable Decision Support Systems
+  for Early Cancer Diagnosis and Personalized Treatment": NObSP interpretability,
+  population-scale gastric cancer risk prediction, and MPC-based adaptive therapy
+  for metastatic castration-resistant prostate cancer.
+authors:
+  - family-names: "Pena-Campos"
+    given-names: "Johan S."
+    affiliation: "Universitat Politecnica de Catalunya / Pontificia Universidad Javeriana"
+license: MIT
+repository-code: "https://github.com/JoeCode91/interpretable-dss-cancer"
+keywords:
+  - cancer
+  - model predictive control
+  - evolutionary game theory
+  - interpretability
+  - adaptive therapy
+references:
+  - type: thesis
+    title: "Interpretable Decision Support Systems for Early Cancer Diagnosis and Personalized Treatment"
+    authors:
+      - family-names: "Pena-Campos"
+        given-names: "Johan S."
+    thesis-type: "PhD thesis"
+    institution:
+      name: "Universitat Politecnica de Catalunya"
+    year: 2026
