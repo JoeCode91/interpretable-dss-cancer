@@ -20,10 +20,9 @@ inside pruning_MNIST.ipynb and pruning_CIFAR10.ipynb are
 
     Copyright (c) 2023 Alexander Caicedo
 
-reproduced here with the author's permission.
-
-and released by him under the Apache License 2.0, matching the licence he
-already chose for nobsp_lib. A copy of that licence is in LICENSE-Apache-2.0.
+reproduced here with the author's permission and released by him under the
+Apache License 2.0, matching the licence he already chose for nobsp_lib. The
+full text of that licence is in LICENSE-Apache-2.0.
 
 --------------------------------------------------------------------------
 2. nobsp_lib is a dependency, not part of this repository
