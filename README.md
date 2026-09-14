@@ -25,8 +25,8 @@ parameter value and every scenario configuration is in `adaptive-therapy/params/
 comprise longitudinal diagnosis and procedure sequences for 4.9 million patients of the
 Colombian health system, together with municipality of residence. Removing direct
 identifiers does not make such records anonymous, and they are not the authors' data to
-distribute: they were accessed under ethics approval FM-CIE-030920 and remain under the
-custody of the issuing institutions. Requests for access should be directed to that
+distribute: they were accessed under ethics approval FM-CIE-030920, extended to cover this
+work, and remain under the custody of the issuing institutions. Requests for access should be directed to that
 custodian.
 
 To keep the pipeline runnable, a generator emits a **synthetic cohort** in the same
@@ -35,9 +35,11 @@ and CUPS catalogues. It reproduces the *mechanics* of the pipeline, not the stat
 the real cohort. Results obtained on synthetic data are not comparable with those reported
 in the thesis.
 
-**Trained weights are not distributed.** A model fitted to patient records can in
-principle disclose information about them. They are available on reasonable request,
-subject to the terms of the ethics approval.
+**Trained weights are not distributed.** They were fitted to the restricted clinical
+records described above, and the ethics approval under which those records were accessed
+does not contemplate the distribution of models derived from them. Releasing them would
+require a decision by the data custodian rather than by the authors. Researchers with a
+specific interest may contact the authors, who will refer the request to the custodian.
 
 **This code is not byte-for-byte what produced the thesis results.** The differences are
 presentational, selective, and one verified-inert correction. They are listed in

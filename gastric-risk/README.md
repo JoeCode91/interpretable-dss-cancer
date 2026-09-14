@@ -14,12 +14,14 @@ diagnosis and procedure sequences for 4.9 million patients of the Colombian SGSS
 together with municipality of residence and demographics. Removing direct identifiers does
 not make such records anonymous — a clinical trajectory plus a geographic attribute is a
 standard re-identification vector — and they are not the authors' to distribute: they were
-accessed under ethics approval FM-CIE-030920 and remain under the custody of the issuing
-institutions. Requests for access go to that custodian, not to the authors.
+accessed under ethics approval FM-CIE-030920, extended to cover this work, and remain
+under the custody of the issuing institutions. Requests for access go to that custodian, not to the authors.
 
-**The trained weights are not here either.** A model fitted to patient records can in
-principle disclose information about them. Available on reasonable request, subject to the
-terms of the approval.
+**The trained weights are not here either.** They were fitted to the restricted records
+above, and the ethics approval under which those records were accessed does not contemplate
+the distribution of models derived from them. Releasing them would require a decision by the
+data custodian rather than by the authors; researchers with a specific interest may contact
+the authors, who will refer the request to the custodian.
 
 **So the code here cannot reproduce the numbers in the thesis.** It can be read, and it can
 be run end to end on synthetic data. That is the honest extent of it.

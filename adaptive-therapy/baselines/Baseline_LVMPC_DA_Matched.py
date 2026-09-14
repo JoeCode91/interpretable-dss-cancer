@@ -94,11 +94,9 @@ AUTHORSHIP
 
 USE OF AI ASSISTANCE
     This file was drafted with generative AI (Claude, Anthropic) and then reviewed,
-    corrected and validated by the author, who takes full responsibility for it. This is
-    a stronger statement than the one carried by most files in this repository, which
-    were written by the author and only reviewed with AI assistance; it is recorded
-    separately so that the distinction is not lost. The research question this script
-    answers, and the interpretation of what it returns, are the author's.
+    corrected and validated by the author, who takes full responsibility for it. The
+    research question this script answers, and the interpretation of what it returns,
+    are the author's.
 """
 
 
