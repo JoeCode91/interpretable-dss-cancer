@@ -10,8 +10,8 @@ diseases and different data regimes, and the output of one is not an input to th
 
 | Directory | Thesis | Status |
 |---|---|---|
-| [`nobsp/`](nobsp/) | Chapter 3 — Nonlinear Oblique Subspace Projections | not yet populated |
-| [`gastric-risk/`](gastric-risk/) | Chapter 4 — population-scale gastric cancer risk prediction | not yet populated |
+| [`nobsp/`](nobsp/) | Chapter 3 — Nonlinear Oblique Subspace Projections | **available** |
+| [`gastric-risk/`](gastric-risk/) | Chapter 4 — population-scale gastric cancer risk prediction | **available** |
 | [`adaptive-therapy/`](adaptive-therapy/) | Chapters 5 and 6 — MPC for adaptive therapy in mCRPC | **available** |
 
 ---
@@ -29,7 +29,7 @@ distribute: they were accessed under ethics approval FM-CIE-030920 and remain un
 custody of the issuing institutions. Requests for access should be directed to that
 custodian.
 
-To keep the pipeline runnable, a generator will emit a **synthetic cohort** in the same
+To keep the pipeline runnable, a generator emits a **synthetic cohort** in the same
 schema, with the same array shapes and class ratio, drawing codes from the public ICD-10
 and CUPS catalogues. It reproduces the *mechanics* of the pipeline, not the statistics of
 the real cohort. Results obtained on synthetic data are not comparable with those reported
