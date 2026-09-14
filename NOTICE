@@ -1,0 +1,53 @@
+NOTICE
+======
+
+This repository is released under the MIT licence (see LICENSE), with the
+exceptions recorded here.
+
+--------------------------------------------------------------------------
+1. NObSP decomposition functions in nobsp/pruning/
+--------------------------------------------------------------------------
+
+The cells defining
+
+    ObSP
+    obsp_regression
+    NObSP_NN_single_MultiOutput
+    NObSP_NN_single_MultiOutput_L1
+    NObSP_NN_single_MultiOutput_L2
+
+inside pruning_MNIST.ipynb and pruning_CIFAR10.ipynb are
+
+    Copyright (c) 2023 Alexander Caicedo
+
+reproduced here with the author's permission.
+
+    >>> PENDING: the licence under which these functions are released has not
+    >>> yet been fixed by their author. Until it is, they are included by
+    >>> permission only. Apache-2.0 is proposed, matching the licence the same
+    >>> author already chose for nobsp_lib.
+
+--------------------------------------------------------------------------
+2. nobsp_lib is a dependency, not part of this repository
+--------------------------------------------------------------------------
+
+The interpretability analysis of Chapter 4 of the thesis used
+
+    nobsp_lib, version 0.1.0
+    Santiago Alferez and Alexander Caicedo
+    https://github.com/santialferez/nobsp_lib
+    Apache-2.0
+
+accessed 2026-04-17. It is not redistributed here. Install it from its own
+repository.
+
+--------------------------------------------------------------------------
+3. Scope of the MIT licence
+--------------------------------------------------------------------------
+
+The MIT licence covers the source code of this repository. It grants no right
+over the clinical data used in Chapter 4, which are not distributed and remain
+under the custody of the institutions that issued ethics approval
+FM-CIE-030920.
+
+Parameter tables and synthetic data are released under CC BY 4.0.

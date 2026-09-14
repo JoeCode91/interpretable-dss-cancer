@@ -30,6 +30,13 @@ checkpoints/
 **/Modelos/
 **/Modelos_V*/
 
+#  EXCEPCION: los checkpoints del pruning si van. Estan entrenados sobre MNIST
+#  y CIFAR-10, que son datasets publicos, de modo que no hay nada que filtrar.
+#  La regla de arriba existe por los modelos del Cap. 4, entrenados sobre
+#  registros de pacientes; estos son de otra naturaleza.
+!nobsp/pruning/checkpoints/
+!nobsp/pruning/checkpoints/*.pth
+
 # --- 3. CREDENCIALES ---------------------------------------------------------
 #  telegram_notifier.py lleva token de bot. No debe viajar.
 telegram_notifier.py
