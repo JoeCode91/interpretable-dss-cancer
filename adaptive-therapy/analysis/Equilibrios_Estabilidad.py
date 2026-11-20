@@ -76,8 +76,9 @@ AUTHORSHIP
     Universidad Javeriana, 2026.
 
 USE OF AI ASSISTANCE
-    This file was drafted with generative AI (Claude, Anthropic) and then reviewed,
-    corrected and validated by the author, who takes full responsibility for it. The
+    This file was written with the assistance of generative AI (Claude, Anthropic),
+    to the author's specification, and reviewed, corrected and validated by the
+    author, who takes full responsibility for it. The
     research question this script answers, and the interpretation of what it returns,
     are the author's.
 """

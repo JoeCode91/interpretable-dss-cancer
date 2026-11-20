@@ -1,27 +1,34 @@
 """
-Modelo_Predictivo_CNN2D_V4 -- training script para CNN 2D V4 (Camino 2,
+Modelo_Predictivo_CNN2D_V4 -- training script para la CNN 2D sobre el tensor (1541, 100)
+por paciente, sin overlap, sin masking.
 
 REPRODUCES IN THE THESIS
     Trains the final CNN-2D model. Section 4.4 and the results reported for it.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults, notification
+    calls and a test-only kill switch were removed, the loss functions are imported from
+    perdida_hibrida.py, and comments were edited. See CHANGES-FROM-THESIS.md at the
     repository root.
 
 --------------------------------------------------------------------------
-refinamiento Alex 18 May 2026 sobre tensor (1541, 100) sin overlap, sin masking).
-
-Diferencias respecto a Modelo_Predictivo_CNN2D.py (Camino 1):
-  - HDF5 schema nuevo: X_events (n, 1541, 100), X_demograficos (n, 15),
-    y (n,). Sin X_mascaras.
-  - Dataset V4 propio (HDF5DatasetV4) que devuelve 3-tupla en vez de 4.
-  - Modelo CNN2DModelV4 (single-channel, MaxPool entre bloques).
-  - BATCH_SIZE=64 (en vez de 128, restriccion VRAM RTX 3060 Ti verificada).
-  - Reusa hybrid_loss + composite_score + threshold sweep helpers de V3 PyTorch.
-
-Autor: Johan S. Pena-Campos, Cap. 4 Camino 2 V4
-Fecha: 2026-05-18 (sesion 29)
+  - Datos: HDF5 de Preparar_HDF5_V4.py (temporales en z-score). TRAIN por defecto =
+    particion 20:1 de generar_balanced_20to1.py; VAL/TEST = particiones 100:1.
+    Variables de entorno: CNN2D_TRAIN, CNN2D_VAL, CNN2D_TEST (por defecto el mas
+    reciente en ./batches/Datos_Modelo_CNN), CNN2D_OUT, CNN2D_TAG.
+  - Esquema HDF5: X_events (n, 1541, 100), X_demograficos (n, 15), y (n,). Sin X_mascaras.
+  - Modelo CNN2DModelV4 (models/modelo_cnn2d_v4_pytorch.py; single-channel, MaxPool
+    entre bloques).
+  - Lote 64 (restriccion de VRAM, RTX 3060 Ti 8 GB), Adam 1e-4, ReduceLROnPlateau 0,5/5,
+    paciencia 10, 50 epocas max, perdida hibrida (focal + BCE ponderada) y criterio de
+    checkpoint AUC-PR (average precision) + 0,1 J de Youden en validacion.
+  - Semilla fija (CNN2D_SEED, por defecto 42; "" = sin semilla) para inicializacion y
+    orden de lotes. La GPU no es determinista bit a bit (cudnn).
+  - Reanudacion: al final de cada epoca se guarda _last.pt con modelo, optimizador,
+    scheduler, estado RNG, mejor puntuacion y paciencia; CNN2D_RESUME=<ts> reanuda desde
+    ahi (sin _last.pt empieza de cero con ese ts).
+  - Pruebas: CNN2D_MAX_STEPS / CNN2D_MAX_EPOCHS limitan pasos por epoca y epocas.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -41,11 +48,11 @@ USE OF AI ASSISTANCE
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
 # datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 
-
 import os
 import sys
 import json
 import time
+import random                      # estado RNG de python en _last.pt
 import glob
 from pathlib import Path
 from datetime import datetime
@@ -56,62 +63,57 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import roc_auc_score, average_precision_score, confusion_matrix
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Modulos hermanos del repositorio: arquitectura en ../models, perdida en esta carpeta
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "models"))
 
 from modelo_cnn2d_v4_pytorch import CNN2DModelV4
-# Reusar loss y composite del V3 PyTorch
-from Modelo_Predictivo_V3_PyTorch import hybrid_loss, composite_score, J_WEIGHT
-
-# Telegram notifications (silent fail)
-try:
-    from telegram_notifier import MPCNotifier
-except Exception as _e:
-    print(f"[Telegram] modulo no disponible ({_e}); notificaciones OFF", flush=True)
-    class MPCNotifier:
-        def __init__(self, **kw): self.enabled = False
-        def notify_start(self, *a, **kw): return False
-        def notify_progress(self, *a, **kw): return False
-        def notify_error(self, *a, **kw): return False
-        def notify_complete(self, *a, **kw): return False
-        def notify_warning(self, *a, **kw): return False
+from perdida_hibrida import hybrid_loss, composite_score, J_WEIGHT
 
 
 # ==================== CONFIG ====================
 
-V4_DIR = Path("./batches/Datos_Modelo_V4")
+V4_DIR = Path("./batches/Datos_Modelo_CNN")
 
 def find_latest_v4_split(split: str) -> str:
-    """Encuentra el HDF5 V4 mas reciente para train/val/test (por timestamp)."""
-    pattern = str(V4_DIR / f"datos_modelo_{split}_v4_*.h5")
+    """Encuentra el HDF5 mas reciente para train/val/test (por timestamp)."""
+    # train = 20:1 generado por generar_balanced_20to1.py
+    if split == "train":
+        pattern = str(V4_DIR / "datos_modelo_train_balanced_20to1_cnn_*.h5")
+    else:
+        pattern = str(V4_DIR / f"datos_modelo_{split}_cnn_*.h5")
     matches = sorted(glob.glob(pattern))
     if not matches:
         raise FileNotFoundError(
-            f"No se encontraron HDF5 V4 en {V4_DIR} con pattern {pattern}. "
+            f"No se encontraron HDF5 en {V4_DIR} con pattern {pattern}. "
             f"Ejecuta Preparar_HDF5_V4.py primero."
         )
     return matches[-1]  # mas reciente por sort alfabetico timestamp
 
 
-TRAIN_DATA = os.environ.get("CNN2D_V4_TRAIN", "")
-VAL_DATA   = os.environ.get("CNN2D_V4_VAL",   "")
-TEST_DATA  = os.environ.get("CNN2D_V4_TEST",  "")
+TRAIN_DATA = os.environ.get("CNN2D_TRAIN", "")
+VAL_DATA   = os.environ.get("CNN2D_VAL",   "")
+TEST_DATA  = os.environ.get("CNN2D_TEST",  "")
 OUTPUT_DIR = Path(os.environ.get(
-    "CNN2D_V4_OUT", "./batches/Modelos_CNN2D_V4_PyTorch/"
+    "CNN2D_OUT", "./batches/Modelos_CNN2D_PyTorch/"
 ))
-TAG = os.environ.get("CNN2D_V4_TAG", "cnn2d_v4")
+TAG = os.environ.get("CNN2D_TAG", "cnn2d")
+SEED = os.environ.get("CNN2D_SEED", "42")                 # "" -> sin semilla
+RESUME_TS = os.environ.get("CNN2D_RESUME", "")             # timestamp de la corrida a reanudar
+MAX_STEPS = int(os.environ.get("CNN2D_MAX_STEPS", "0"))   # pruebas (0 = sin limite)
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Hiperparametros
-BATCH_SIZE = 64          # vs 128 V3.2/Camino 1, restriccion VRAM (peak 6.2 GB en RTX 3060 Ti)
-EPOCHS = 50
+BATCH_SIZE = 64          # restriccion VRAM (pico 6.2 GB en RTX 3060 Ti)
+EPOCHS = int(os.environ.get("CNN2D_MAX_EPOCHS", "50"))   # 50; las pruebas lo bajan
 LEARNING_RATE = 1e-4
 PATIENCE = 10
 LR_REDUCE_PATIENCE = 5
 LR_REDUCE_FACTOR = 0.5
 DROPOUT = 0.4
 
-# Arquitectura CNN 2D V4
+# Arquitectura CNN 2D
 C1 = 32
 C2 = 64
 C3 = 128
@@ -119,10 +121,10 @@ C_POOL = 64
 N_DENSE = 64
 
 
-# ==================== DATASET V4 ====================
+# ==================== DATASET ====================
 
 class HDF5DatasetV4(Dataset):
-    """Lee HDF5 V4 con keys X_events, X_demograficos, y (sin X_mascaras).
+    """Lee HDF5 con keys X_events, X_demograficos, y (sin X_mascaras).
 
     preload=True carga todo a RAM (recomendado para train balanceado 20:1).
     """
@@ -169,11 +171,11 @@ class HDF5DatasetV4(Dataset):
         )
 
 
-# ==================== EVALUACION V4 ====================
+# ==================== EVALUACION ====================
 
 @torch.no_grad()
 def evaluate_v4(model, loader, device, threshold=0.5):
-    """Evaluacion completa adaptada al forward V4 (sin mascara)."""
+    """Evaluacion completa con el forward de la CNN (sin mascara)."""
     model.eval()
     ys = []; ps = []
     for X_e, X_d, y in loader:
@@ -211,11 +213,14 @@ def main():
     if not TEST_DATA:  TEST_DATA  = find_latest_v4_split("test")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if SEED != "":                                   # semilla fija
+        random.seed(int(SEED)); np.random.seed(int(SEED)); torch.manual_seed(int(SEED))
+        torch.cuda.manual_seed_all(int(SEED))
+    ts = RESUME_TS or datetime.now().strftime("%Y%m%d_%H%M%S")
     model_name = f"modelo_{TAG}_pytorch_{ts}"
 
     print("=" * 72)
-    print(f"CNN 2D V4 PyTorch -- {model_name}")
+    print(f"CNN 2D PyTorch -- {model_name}")
     print(f"Device: {device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
@@ -226,21 +231,8 @@ def main():
     print(f"Batch: {BATCH_SIZE} (reducido por VRAM)")
     print("=" * 72)
 
-    notifier = MPCNotifier(enabled=True)
-    notifier.notify_start(model_name, {
-        'device': str(device),
-        'tag': TAG,
-        'arch': 'CNN2D V4 (Camino 2, Alex 18 May)',
-        'batch_size': BATCH_SIZE,
-        'max_epochs': EPOCHS,
-        'patience': PATIENCE,
-        'train_data': Path(TRAIN_DATA).name,
-        'criterion': f'composite = AUC-PR + {J_WEIGHT}*Youden_J',
-        'channels': f'1 -> {C1} -> {C2} -> {C3} -> {C_POOL}',
-    })
-
     # --- Datasets ---
-    print("\n[1/5] Cargando datasets V4...", flush=True)
+    print("\n[1/5] Cargando datasets...", flush=True)
     train_ds = HDF5DatasetV4(TRAIN_DATA, preload=True)
     val_ds   = HDF5DatasetV4(VAL_DATA,   preload=True)
     test_ds  = HDF5DatasetV4(TEST_DATA,  preload=True)
@@ -289,9 +281,28 @@ def main():
     best_epoch = 0
     epochs_no_improve = 0
     best_path = OUTPUT_DIR / f"{model_name}_best.pt"
-    t_start = time.time()
+    # reanudacion desde *_last.pt (estado completo guardado al final de cada epoca)
+    last_path = OUTPUT_DIR / f"{model_name}_last.pt"
+    start_ep, t_prev = 1, 0.0
+    # con CNN2D_RESUME=<ts> y sin _last.pt se empieza de cero con ese ts
+    if RESUME_TS and last_path.exists():
+        ck = torch.load(last_path, map_location=device, weights_only=False)   # fichero propio
+        model.load_state_dict(ck['model']); optimizer.load_state_dict(ck['opt'])
+        scheduler.load_state_dict(ck['sched']); history = ck['history']
+        best_score, best_metrics, best_epoch = ck['best_score'], ck['best_metrics'], ck['best_epoch']
+        epochs_no_improve, t_prev = ck['no_improve'], ck['train_time']
+        random.setstate(ck['rng_py']); np.random.set_state(ck['rng_np'])
+        torch.set_rng_state(ck['rng_torch'].cpu())   # map_location lo mueve a GPU: el estado RNG debe ser CPU ByteTensor
+        if torch.cuda.is_available() and ck.get('rng_cuda') is not None:
+            torch.cuda.set_rng_state_all([t.cpu() for t in ck['rng_cuda']])
+        start_ep = ck['epoch'] + 1
+        if epochs_no_improve >= PATIENCE:
+            start_ep = EPOCHS + 1          # ya habia parado: solo falta la evaluacion final
+        print(f"  REANUDADO desde epoca {ck['epoch']} (best {best_score:.4f} @ {best_epoch}; "
+              f"sin mejora {epochs_no_improve})", flush=True)
+    t_start = time.time() - t_prev
 
-    for ep in range(1, EPOCHS + 1):
+    for ep in range(start_ep, EPOCHS + 1):
         model.train()
         ep_t0 = time.time()
         ep_loss = 0.0
@@ -310,6 +321,10 @@ def main():
             optimizer.step()
             ep_loss += loss.item() * y.size(0)
             ep_n += y.size(0)
+            if MAX_STEPS and bi + 1 >= MAX_STEPS:          # pruebas
+                print(f"  [prueba] corte tras {bi + 1} pasos; loss {loss.item():.4f}; "
+                      f"{(time.time() - ep_t0) / (bi + 1):.3f} s/paso", flush=True)
+                break
         ep_loss /= ep_n
 
         train_metrics = evaluate_v4(model, train_loader, device, threshold=0.5)
@@ -350,17 +365,18 @@ def main():
 
         scheduler.step(score)
 
-        elapsed_total = time.time() - t_start
-        notifier.notify_progress(
-            ep, EPOCHS, elapsed_total,
-            extra_info=(
-                f"<b>CNN2D V4 Epoch {ep}/{EPOCHS}</b>\n"
-                f"loss {ep_loss:.4f} | val AUC {val_metrics['auc_roc']:.4f}\n"
-                f"AUC-PR {val_metrics['auc_pr']:.4f} | J {J_val:+.3f}\n"
-                f"composite {score:.4f} (best {best_score:.4f} @ ep {best_epoch})\n"
-                f"sens {val_metrics['sens']:.3f}  spec {val_metrics['spec']:.3f}"
-            ),
-        )
+        # estado completo al final de cada epoca (escritura atomica) + historial
+        tmp = last_path.with_suffix('.tmp')
+        torch.save({'epoch': ep, 'model': model.state_dict(), 'opt': optimizer.state_dict(),
+                    'sched': scheduler.state_dict(), 'history': history, 'best_score': best_score,
+                    'best_metrics': best_metrics, 'best_epoch': best_epoch,
+                    'no_improve': epochs_no_improve, 'train_time': time.time() - t_start,
+                    'rng_py': random.getstate(), 'rng_np': np.random.get_state(),
+                    'rng_torch': torch.get_rng_state(),
+                    'rng_cuda': torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None}, tmp)
+        os.replace(tmp, last_path)
+        with open(OUTPUT_DIR / f"{model_name}_history.json", 'w') as fh_:
+            json.dump(history, fh_, indent=2)
 
         if epochs_no_improve >= PATIENCE:
             print(f"     -> EarlyStopping en epoch {ep}")
@@ -397,7 +413,7 @@ def main():
         json.dump({
             'timestamp': ts,
             'tag': TAG,
-            'architecture': 'CNN2D V4 (Camino 2, Alex 18 May)',
+            'architecture': 'CNN2D (CNN2DModelV4)',
             'channels': {'c1': C1, 'c2': C2, 'c3': C3, 'c_pool': C_POOL, 'n_dense': N_DENSE},
             'epochs_trained': len(history['loss']),
             'n_parameters': n_params,
@@ -408,8 +424,9 @@ def main():
             'lr': LEARNING_RATE,
             'dropout': DROPOUT,
             'patience': PATIENCE,
-            'configuration': f'{TAG} -- PyTorch GPU CNN 2D V4',
-            'parent_version': 'V4 HDF5 from scratch (sin overlap, sin masking, lat/lon + edad continua)',
+            'configuration': f'{TAG} -- PyTorch GPU CNN 2D',
+            'parent_version': 'HDF5 CNN (temporales en z-score), train 20:1',
+            'seed': SEED,
             'train_data': TRAIN_DATA,
             'val_data':   VAL_DATA,
             'test_data':  TEST_DATA,
@@ -420,35 +437,11 @@ def main():
           f"test AUC-PR={test_metrics['auc_pr']:.4f}, "
           f"training={train_time/60:.1f} min", flush=True)
 
-    notifier.notify_complete(
-        model_name, train_time,
-        kpis={
-            'best_composite': f"{best_score:.4f} @ ep {best_epoch}/{len(history['loss'])}",
-            'test_AUC_ROC': f"{test_metrics['auc_roc']:.4f}",
-            'test_AUC_PR':  f"{test_metrics['auc_pr']:.4f}",
-            'sens@0.5': f"{test_metrics['sens']:.3f}",
-            'spec@0.5': f"{test_metrics['spec']:.3f}",
-            'TP/FN @ 0.5': f"{test_metrics['tp']}/{test_metrics['fn']}",
-        },
-        config={
-            'tag': TAG,
-            'arch': 'CNN2D V4',
-            'n_params': f"{n_params:,}",
-            'epochs_trained': len(history['loss']),
-        },
-    )
-
 
 if __name__ == "__main__":
     import traceback
     try:
         main()
-    except Exception as e:
-        tb = traceback.format_exc()
-        try:
-            n = MPCNotifier(enabled=True)
-            n.notify_error(type(e).__name__, str(e), traceback_text=tb)
-        except Exception:
-            pass
-        print(tb, flush=True)
+    except Exception:
+        print(traceback.format_exc(), flush=True)
         raise

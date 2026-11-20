@@ -5,24 +5,29 @@ REPRODUCES IN THE THESIS
     NObSP-CAM per patient over the balanced set, Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
-Pregunta del usuario: en vez de las 500 perturbaciones de W2, usar pacientes REALES.
+Usa pacientes REALES en lugar de las 500 sondas de perturbacion de W2.
 Metodo: NObSP-CAM por paciente (reusa los beta_c de W4 ya obtenidos en
-post_pool_explainer.npz; solo se calcula el feature-map de cada paciente con un
-forward pass, sin re-correr NObSP). Cada fila del heatmap es un paciente real.
+post_pool_explainer.npz de la muestra B; solo se calcula el feature-map de cada
+paciente con un forward pass, sin re-correr NObSP). Cada fila del heatmap es un
+paciente real.
 
-Base: TODOS los pacientes de cancer de train+val+test (~963) + igual numero de
-no-cancer aleatorios (mismo conteo por split), balanceada.
+Muestra C: los 963 cancer de train+val+test y el mismo numero de no cancer por
+split (default_rng(42)), balanceada. Solo alimenta esta figura. Los ficheros de
+datos son los del modelo fijado con CNN2D_TS (el train es la particion 100:1 de
+origen del 20:1).
 
-Salidas en nobsp_results_v4_traintest/:
+Salidas en CAM_DIR (por defecto ./batches/Resultados/cam_por_paciente_963x2):
   - cam_per_patient_heatmap.{png,pdf}        heatmap por paciente (cancer arriba / no-cancer abajo)
   - cam_per_patient_mean_profiles.{png,pdf}  perfiles medios cancer vs no-cancer + ocupacion
-  - cam_per_patient.npz                       datos crudos
+  - cam_per_patient.npz                       datos crudos (con split, fila e ID de cada paciente)
+  - muestra.json                              definicion de la muestra y checkpoint
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -38,7 +43,19 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import sys as _sys
+from pathlib import Path as _P
+# Modulos hermanos del repositorio
+_HERE = _P(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "models", _HERE.parent / "training"):
+    _sys.path.insert(0, str(_d))
+
+
 import glob
+import os
 from pathlib import Path
 import numpy as np
 import h5py
@@ -50,9 +67,11 @@ import matplotlib.pyplot as plt
 
 from modelo_cnn2d_v4_pytorch import CNN2DModelV4
 
-MODEL_DIR = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
-V4 = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
-OUT = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4_traintest")
+MODEL_DIR = Path("./batches/Modelos_CNN2D_PyTorch")
+V4 = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
+OUT = Path(os.environ.get('CAM_DIR', "./batches/Resultados/cam_por_paciente_963x2"))   # muestra C
+RUNB = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))   # W4 (beta_c) de la muestra B
+OUT.mkdir(parents=True, exist_ok=True)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 N_FEAT, N_EV = 1541, 100
 rng = np.random.default_rng(42)
@@ -82,15 +101,21 @@ def norm01(a):
 def main():
     print(f"Device: {DEVICE}", flush=True)
     # --- beta_c de W4 (resultado NObSP ya obtenido) ---
-    w4 = np.load(OUT / "post_pool_explainer.npz", allow_pickle=True)
+    import checkpoint_utils as ck
+    global MODEL_PT, DATOS
+    MODEL_PT = ck.cnn_pt()
+    DATOS = ck.datos_cnn()
+    print(f"checkpoint {MODEL_PT}", flush=True)
+    w4 = np.load(RUNB / "post_pool_explainer.npz", allow_pickle=True)
     ci = cancer_idx(w4)
     beta = np.clip(w4['contributions'][:, :, ci].astype(np.float32).mean(0), 0, None)  # (64,)
     print(f"W4 beta_c (64) cargado, clase cancer idx={ci}", flush=True)
 
     # --- cargar TODOS los canceres + igual no-cancer por split ---
     Xc_list, Xn_list = [], []
+    filas_c, filas_n = [], []   # (split, fila, ID) de cada paciente de la muestra C
     for split in ['train', 'val', 'test']:
-        f = latest(V4 / f"datos_modelo_{split}_v4_*.h5")
+        f = DATOS[split]   # ficheros del config del modelo fijado (train = 100:1 de origen del 20:1)
         with h5py.File(f, 'r') as h:
             y = h['y'][:]
             cidx = np.sort(np.where(y == 1)[0])
@@ -98,13 +123,16 @@ def main():
             nidx = np.sort(rng.choice(nall, size=len(cidx), replace=False))
             Xc_list.append(h['X_events'][cidx].astype(np.float32))
             Xn_list.append(h['X_events'][nidx].astype(np.float32))
+            ids = h['ID'][:] if 'ID' in h else np.full(len(y), -1)
+            filas_c += [(split, int(r), int(ids[r])) for r in cidx]
+            filas_n += [(split, int(r), int(ids[r])) for r in nidx]
         print(f"  {split}: {len(cidx)} cancer + {len(cidx)} no-cancer", flush=True)
     Xc = np.concatenate(Xc_list); Xn = np.concatenate(Xn_list)
     print(f"Total: {len(Xc)} cancer + {len(Xn)} no-cancer", flush=True)
 
     # --- modelo ---
     model = CNN2DModelV4(n_features=N_FEAT, n_eventos=N_EV, n_demograficos=15).to(DEVICE)
-    model.load_state_dict(torch.load(latest(MODEL_DIR / "*best*.pt"),
+    model.load_state_dict(torch.load(MODEL_PT,
                                      map_location=DEVICE, weights_only=True))
     model.eval()
 
@@ -185,7 +213,18 @@ def main():
     print(f"masa CAM media: cancer={prof_c.mean():.4f}, no-cancer={prof_n.mean():.4f}", flush=True)
     print(f"ocupacion media (pos 30-50): cancer={occ_c[30:50].mean():.3f}, no-cancer={occ_n[30:50].mean():.3f}", flush=True)
     np.savez(OUT / "cam_per_patient.npz", prof_c=prof_c, prof_n=prof_n,
-             occ_c=occ_c, occ_n=occ_n, pearson_cn=r, pearson_occ=rc)
+             occ_c=occ_c, occ_n=occ_n, pearson_cn=r, pearson_occ=rc,
+             split_cancer=np.array([a for a, _, _ in filas_c]), fila_cancer=np.array([b for _, b, _ in filas_c]),
+             split_no_cancer=np.array([a for a, _, _ in filas_n]), fila_no_cancer=np.array([b for _, b, _ in filas_n]),
+             ids_cancer=np.array([c for _, _, c in filas_c]), ids_no_cancer=np.array([c for _, _, c in filas_n]))
+    import json as _json
+    with open(OUT / "muestra.json", "w", encoding="utf-8") as fh:
+        _json.dump({"muestra": "C", "descripcion": "muestra C = TODOS los cancer de train+val+test (963) + igual numero de no cancer por split (default_rng(42)); solo la figura CAM por paciente",
+                    "n_cancer": len(filas_c), "n_no_cancer": len(filas_n),
+                    "w4_de": str(RUNB / "post_pool_explainer.npz"),
+                    "modelo": ck.registro(MODEL_PT), "ficheros": {k: str(v) for k, v in DATOS.items()},
+                    "salidas": ["cam_per_patient_heatmap", "cam_per_patient_mean_profiles", "cam_per_patient.npz"]},
+                   fh, indent=2)
     print("guardado cam_per_patient_heatmap/_mean_profiles + .npz", flush=True)
     print("Done!", flush=True)
 

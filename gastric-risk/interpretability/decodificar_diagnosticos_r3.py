@@ -1,34 +1,44 @@
 """
 R3 -- Ingenieria inversa de diagnosticos (CIE-10) y procedimientos (CUPS) en los
+eventos de los pacientes con cancer.
 
 REPRODUCES IN THE THESIS
     Reverse-engineers the CIE-10 and CUPS codes behind the temporally salient events,
     Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
-eventos de los pacientes con cancer (solicitud S3 de Alex, 26 May).
 
-Cada evento del tensor V4 codifica [emb_diag(768), emb_proc(768), temporal(5)].
+Cada evento del tensor codifica [emb_diag(768), emb_proc(768), temporal(5)].
 Los bloques de embedding son copia byte-a-byte de los embeddings cacheados
 (L2-normalizados), por lo que el codigo se recupera de forma EXACTA via argmax
 del producto punto contra el diccionario de codigos.
 
-Marco (post-R4): la "zona caliente" temporal esta confundida con longitud de
+La localizacion temporal de las atribuciones esta confundida con la longitud de
 historia / padding. R3 separa CONTENIDO (que diagnosticos) de POSICION:
-  - decodifica todos los eventos reales de los 7 pacientes cancer (y los 493 no),
+  - decodifica todos los eventos reales de los pacientes de la muestra B,
   - enfoca los eventos RECIENTES (frontera dato/padding = ultimos K reales),
   - mide enriquecimiento de cada codigo en cancer vs no-cancer.
 
-Salidas en nobsp_results_v4/:
+Muestra B: todos los cancer de train (100:1) y test, y el mismo numero de no cancer
+de train+test (RandomState(42)), en el orden de calib_index.npz.
+
+Salidas en NOBSP_RUNB_DIR (por defecto ./batches/Resultados/nobsp_runB_traintest):
+  - r3_diagnosticos_todos.{csv,json}  tabla completa de diagnosticos (pacientes por
+                                      clase, ocurrencias, lift sin suavizado)
   - r3_diagnosticos_cancer.csv     codigos diag enriquecidos en cancer (+ descripcion)
   - r3_procedimientos_cancer.csv   codigos proc enriquecidos en cancer
+  - r3_diagnosticos_recientes_cancer.csv  diag en los ultimos K eventos
   - r3_eventos_recientes_cancer.csv  ultimos K eventos por paciente cancer (decodificados)
   - r3_resumen.txt                 resumen legible
+
+Necesita los embeddings de los codigos (EMB_DIR, por defecto ./batches/Embeddings/BERT)
+y los mapas codigo -> descripcion mapa_cie10.json / mapa_cups.json (EMB_MAP_DIR).
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -44,6 +54,16 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import sys as _sys
+from pathlib import Path as _P
+# Modulos hermanos del repositorio
+_HERE = _P(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "training"):
+    _sys.path.insert(0, str(_d))
+
 
 import csv
 import glob
@@ -55,11 +75,10 @@ from pathlib import Path
 import numpy as np
 import h5py
 
-BASE = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test")
-EMB_DIR = Path(r"D:\Proyecto_CC_Batches\Embeddings\BERT")
-V4_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
-OUT = BASE / "Book" / "XAI_Model" / "nobsp_results_v4"
-MAP_DIR = BASE / "Book" / "XAI_Model" / "embeddings_v32_setup"
+EMB_DIR = Path(os.environ.get('EMB_DIR', "./batches/Embeddings/BERT"))
+V4_DATA_DIR = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
+OUT = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
+MAP_DIR = Path(os.environ.get('EMB_MAP_DIR', "./embeddings/embeddings_v32_setup"))
 N_SAMPLES = 500
 BERT_DIM = 768
 SIM_THRESHOLD = 0.99   # bloques son copia exacta -> sim real ~1.0; rechaza no-matches
@@ -110,15 +129,15 @@ def main():
     print(f"  diag={diag_emb.shape}, proc={proc_emb.shape}, proc ambiguos={len(proc_ambiguous)}", flush=True)
 
     global OUT
-    R2_DIR = os.environ.get('NOBSP_R2_DIR', '').strip()
+    R2_DIR = os.environ.get('NOBSP_R2_DIR', str(OUT)).strip()   # por defecto, la muestra B
     if R2_DIR:
-        import r2_calib
+        import r2_calib as r2_calib
         X, _, y = r2_calib.load_r2_calib(R2_DIR, str(V4_DATA_DIR), need_events=True)
         X = X.astype(np.float32)
         OUT = Path(R2_DIR)
         print(f"  [R2 train+test] n={len(y)}, cancer={int(y.sum())} -> salida {OUT}", flush=True)
     else:
-        test_pt = latest(V4_DATA_DIR / "datos_modelo_test_v4_*.h5")
+        test_pt = latest(V4_DATA_DIR / "datos_modelo_test_cnn_*.h5")
         with h5py.File(test_pt, 'r') as f:
             X = f['X_events'][:N_SAMPLES].astype(np.float32)   # (500,1541,100)
             y = f['y'][:N_SAMPLES].astype(int)
@@ -128,6 +147,7 @@ def main():
     diag_all = {0: Counter(), 1: Counter()}     # conteo de codigos diag por clase
     proc_all = {0: Counter(), 1: Counter()}
     diag_recent = {0: Counter(), 1: Counter()}  # solo ultimos K eventos (frontera)
+    pac_diag = {0: Counter(), 1: Counter()}     # pacientes con el codigo (no ocurrencias)
     n_pat = {0: 0, 1: 0}
     sims_check = []
     recientes_rows = []   # detalle por paciente cancer
@@ -150,6 +170,8 @@ def main():
             if pcode is not None:
                 proc_all[cls][pcode] += 1
             decoded.append((int(c), dcode, pcode))
+        for dcode_ in {d for _, d, _ in decoded if d is not None}:
+            pac_diag[cls][dcode_] += 1
         # frontera: ultimos K eventos reales (columnas mas altas con dato = mas recientes)
         recent = decoded[-K_RECENT:]
         for (c, dcode, pcode) in recent:
@@ -170,7 +192,8 @@ def main():
         for code in codes:
             rate_c = counter_c[code] / max(n_c, 1)
             rate_n = counter_n[code] / max(n_n, 1)
-            lift = (rate_c + 1e-9) / (rate_n + 1e-9)
+            # Lift sin suavizado: inf si el denominador es 0
+            lift = rate_c / rate_n if rate_n > 0 else (float('inf') if rate_c > 0 else float('nan'))
             rows.append((code, counter_c[code], rate_c, rate_n, lift, descfn(code)))
         # ordenar por presencia en cancer y luego lift
         rows.sort(key=lambda r: (r[1], r[4]), reverse=True)
@@ -190,6 +213,36 @@ def main():
         print(f"  guardado {path.name}", flush=True)
 
     write_csv(OUT / "r3_diagnosticos_cancer.csv", diag_rows, 'descripcion_CIE10')
+
+    # Tabla COMPLETA de diagnosticos, ordenada por lift con el filtro >= MIN_PAC_CANCER
+    # pacientes con cancer primero. "Todos los eventos" = los <= 100
+    # que conserva el tensor de la CNN (no la historia completa: ~2,7 % de la cohorte supera 100).
+    MIN_PAC_CANCER = int(os.environ.get('R3_MIN_PAC_CANCER', '20'))
+    filas_t = []
+    for code in set(diag_all[1]) | set(diag_all[0]):
+        mc = diag_all[1][code] / max(n_c, 1)
+        mn = diag_all[0][code] / max(n_n, 1)
+        lift = mc / mn if mn > 0 else (float('inf') if mc > 0 else float('nan'))
+        filas_t.append(dict(codigo=code, descripcion=desc_diag(code),
+                            n_pac_cancer=pac_diag[1][code], n_pac_nocancer=pac_diag[0][code],
+                            ocurr_cancer=diag_all[1][code], ocurr_nocancer=diag_all[0][code],
+                            media_ocurr_cancer=mc, media_ocurr_nocancer=mn, lift=lift,
+                            cumple_filtro=pac_diag[1][code] >= MIN_PAC_CANCER))
+    filas_t.sort(key=lambda r: (not r['cumple_filtro'],
+                                -(r['lift'] if np.isfinite(r['lift']) else 1e300) if not np.isnan(r['lift']) else 0))
+    with open(OUT / "r3_diagnosticos_todos.csv", 'w', newline='', encoding='utf-8') as fh:
+        w = csv.DictWriter(fh, fieldnames=list(filas_t[0].keys()) if filas_t else ['codigo'])
+        w.writeheader()
+        w.writerows(filas_t)
+    with open(OUT / "r3_diagnosticos_todos.json", 'w', encoding='utf-8') as fh:
+        json.dump({"muestra": "B",
+                   "n_pacientes_cancer": n_c, "n_pacientes_nocancer": n_n,
+                   "lift": "media de ocurrencias por paciente en cancer / en no cancer; inf si no aparece en no cancer",
+                   "eventos": "todos los eventos reales del tensor CNN (los <= 100 mas recientes de cada paciente)",
+                   "orden": f"primero los codigos con >= {MIN_PAC_CANCER} pacientes con cancer, por lift descendente"},
+                  fh, indent=2, ensure_ascii=False)
+    print(f"  guardado r3_diagnosticos_todos.csv ({len(filas_t)} codigos; "
+          f"{sum(r['cumple_filtro'] for r in filas_t)} con >= {MIN_PAC_CANCER} pacientes con cancer)", flush=True)
     write_csv(OUT / "r3_procedimientos_cancer.csv", proc_rows, 'descripcion_CUPS')
     write_csv(OUT / "r3_diagnosticos_recientes_cancer.csv", diag_recent_rows, 'descripcion_CIE10')
 

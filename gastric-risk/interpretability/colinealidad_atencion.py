@@ -2,12 +2,14 @@
 Colinealidad de las representaciones atendidas -- evidencia para el PIVOTE del
 
 REPRODUCES IN THE THESIS
-    Collinearity of the attention representation, first run. Section 4.3.
+    First version of the attention-collinearity analysis, on the BiLSTM-Attention and
+    CNN-2D models of the model-development stage. Not part of the final pipeline; the
+    analysis reported is colinealidad_atencion_v2.py.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults, and comments were edited. See
+    CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 articulo del Cap. 4 (Seccion "Attention collinearity degrades attribution").
@@ -51,21 +53,17 @@ METRICAS POR PACIENTE
 
 DONDE SE EJECUTA
 ----------------
-PC de casa. Requiere los checkpoints de D:\\Proyecto_CC_Batches\\, que no estan
-en Drive. No modifica ningun fichero existente: solo lee modelos y datos y
-escribe resultados nuevos en XAI_Model\\colinealidad_results\\.
+Requiere los checkpoints y los HDF5 de test de ambos modelos (rutas relativas bajo
+./batches, abajo), y el modulo del BiLSTM-Attention (Modelo_Predictivo_V3_PyTorch), que
+este repositorio no incluye. Solo lee modelos y datos y escribe resultados nuevos en
+colinealidad_results/ junto al script.
 
 USO
 ---
-    conda activate <entorno torch>   # el mismo de aplicar_nobsp_v4.py
-    cd "G:\\Mi unidad\\Doctorado\\Proyecto_CC\\Test\\Book\\XAI_Model"
     python colinealidad_atencion.py
 
     # opcional, menos pacientes para una prueba rapida:
     python colinealidad_atencion.py --n 50
-
-Autor: Johan Pena-Campos. Cap. 4, articulo AIM.
-Fecha: 2026-08-25
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -81,6 +79,9 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 import argparse
 import json
 import sys
@@ -92,20 +93,21 @@ import numpy as np
 import h5py
 import torch
 
+# Modulos hermanos del repositorio
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "models"))
 
 # ==================== CONFIGURACION ====================
 
-# BiLSTM-Attention (V3.2). Rutas tomadas de aplicar_nobsp_v32.py
-BILSTM_PT = Path(r"D:\Proyecto_CC_Batches\Modelos_V32_PyTorch"
-                 r"\modelo_v32_pytorch_20260510_151626_best.pt")
-BILSTM_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo")
+# BiLSTM-Attention (V3.2)
+BILSTM_PT = Path("./batches/Modelos_V32_PyTorch/modelo_v32_pytorch_20260510_151626_best.pt")
+BILSTM_DATA_DIR = Path("./batches/Datos_Modelo")
 BILSTM_DATA_GLOB = "datos_modelo_test_*.h5"
 
-# CNN-2D (V4). Rutas tomadas de aplicar_nobsp_v4.py
-CNN_MODEL_DIR = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
+# CNN-2D (V4)
+CNN_MODEL_DIR = Path("./batches/Modelos_CNN2D_V4_PyTorch")
 CNN_MODEL_GLOB = "modelo_cnn2d_v4_pytorch_*_best.pt"
-CNN_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
+CNN_DATA_DIR = Path("./batches/Datos_Modelo_V4")
 CNN_DATA_GLOB = "datos_modelo_test_v4_*.h5"
 
 OUTPUT_DIR = Path(__file__).parent / "colinealidad_results"

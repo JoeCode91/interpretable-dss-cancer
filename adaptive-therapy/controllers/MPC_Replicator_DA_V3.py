@@ -5,10 +5,10 @@ REPRODUCES IN THE THESIS
     Dual-agent closed-loop results of Section 6.6.2, and the dual-agent column of Table 6.5 (tab:rep_comparison).
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/MPC_Replicator_DA_V3.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
-    at the repository root for the complete list of differences.
+    unchanged; the import of the notification module was made optional.
+    See CHANGES-FROM-THESIS.md at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
 V3: Uses calibrated N_max from Calibracion_Nmax_OpenLoop.py so that
@@ -51,8 +51,17 @@ import traceback
 import sys
 import os
 
-# Telegram notifications
-from telegram_notifier import MPCNotifier
+# Optional notifications: telegram_notifier.py is not distributed with this repository.
+# Without it every notifier call is a no-op and nothing else changes.
+try:
+    from telegram_notifier import MPCNotifier
+except ImportError:
+    class MPCNotifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
 
 # Force unbuffered output for real-time logging
 print = lambda *args, **kwargs: __builtins__.__dict__['print'](*args, **{**kwargs, 'flush': True})

@@ -7,9 +7,9 @@ REPRODUCES IN THE THESIS
     Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults and environment variables, and
+    comments were edited. See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
@@ -38,12 +38,16 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 import glob
+import os
 from pathlib import Path
 import numpy as np
 import pandas as pd
 
-MATCHAR = Path(r"D:\Proyecto_CC_Batches\MatChar")
+MATCHAR = Path(os.environ.get("BATCHES_DIR", "./batches")) / "MatChar"
 
 
 def load_gen():

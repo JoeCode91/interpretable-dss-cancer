@@ -1,5 +1,5 @@
 """
-NObSP V4 (Camino 2 -- arquitectura CNN 2D Alex 18 May 2026) -- pipeline en 4 puntos.
+NObSP sobre la CNN 2D -- pipeline en 4 puntos.
 
 REPRODUCES IN THE THESIS
     The four NObSP wrappers applied to the CNN-2D model: W1 demographics, W2 temporal
@@ -8,39 +8,44 @@ REPRODUCES IN THE THESIS
     library itself is a third-party dependency, see the repository NOTICE.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
-Cuatro wrappers aplicados al modelo CNN2DModelV4 entrenado sobre HDF5 V4
-(tensor (1541, 100) por paciente, sin overlap, sin masking, demograficos 15 dims).
+Cuatro wrappers aplicados al modelo CNN2DModelV4 entrenado sobre el HDF5 de la
+cohorte (tensor (1541, 100) por paciente, sin overlap, sin masking, demograficos
+15 dims).
 
   W1 Demograficos          (15 features: EPS_0..9 + Sx_F,M + lat + lon + edad)
-  W2 Input por evento      (100 slots = columnas del tensor V4) -- COSTOSO
+  W2 Input por evento      (100 slots = columnas del tensor) -- COSTOSO
   W3 Post-conv pre-pool    (12 buckets temporales = agregacion del feat-map W=12)
   W4 Post-pool             (64 dims abstractas del vector pooled)
 
-Mejoras de plotting respecto a Camino 1:
+Este modulo define los wrappers, run_nobsp, los plots y los scalers. Los resultados
+de la muestra B los produce aplicar_nobsp_v4_r2.py, que importa este modulo; el
+main() de aqui aplica los mismos cuatro puntos a los 500 primeros pacientes del test.
 
-  (a) Top-N filtering para wrappers con muchas features -- antes los curves de
-      W2/W3 se saltaban; ahora plot del top-N por importancia.
-  (b) Inverse StandardScaler para lat/lon/edad en W1 -- antes los curves del
-      eje X estaban en z-scores (sin interpretacion clinica); ahora se muestran
-      en grados / anios reales usando mu, sigma serializados en metadata_v4.
-  (c) Heatmap temporal (n_samples x 100) para W2 -- complementa los curves
+Plots:
+  (a) Top-N filtering para wrappers con muchas features (W2/W4): curves del top-N
+      por importancia.
+  (b) Inverse StandardScaler para lat/lon/edad en W1: el eje X de los curves se
+      muestra en grados / anios reales usando mu, sigma serializados en la
+      metadata del build (metadata_cnn_<ts>.json).
+  (c) Heatmap temporal (n_samples x 100) para W2: complementa los curves
       mostrando que eventos cronologicos contribuyen positivamente / negativamente
       en muestras individuales.
 
 Costos esperados (RTX 3060 Ti, N_SAMPLES=500):
   W1 (demo 15)          ~ pocos segundos
   W2 (input 100)        ~ minutos      (conv corre 500 veces por feature)
-  W3 (temporal 12)      ~ segundos     (solo pool + FC; mucho mas barato que en Camino 1 con 400 slots)
+  W3 (temporal 12)      ~ segundos     (solo pool + FC)
   W4 (post-pool 64)     ~ trivial
 
-Autor: Johan S. Pena-Campos, Cap. 4 V4 Camino 2
-Fecha: 2026-05-18 (sesion 29)
+El checkpoint se fija con CNN2D_TS (training/checkpoint_utils.py). nobsp_lib es una
+dependencia externa (ver NOTICE): se instala desde su propio repositorio.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -56,8 +61,12 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 
 import csv
+import os
 import glob
 import json
 import sys
@@ -75,7 +84,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Modulos hermanos del repositorio
+_HERE = Path(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "models", _HERE.parent / "training"):
+    sys.path.insert(0, str(_d))
 
 from modelo_cnn2d_v4_pytorch import CNN2DModelV4
 from nobsp_lib import (
@@ -84,29 +96,19 @@ from nobsp_lib import (
     plot_tabular_feature_curves,
 )
 
-try:
-    from telegram_notifier import MPCNotifier
-except Exception:
-    class MPCNotifier:
-        def __init__(self, **kw): self.enabled = False
-        def notify_start(self, *a, **kw): return False
-        def notify_progress(self, *a, **kw): return False
-        def notify_warning(self, *a, **kw): return False
-        def notify_error(self, *a, **kw): return False
-        def notify_complete(self, *a, **kw): return False
-
 
 # ==================== CONFIGURACION ====================
 
-MODEL_DIR = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
-V4_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
-OUTPUT_DIR  = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4")
+MODEL_DIR = Path("./batches/Modelos_CNN2D_PyTorch")
+V4_DATA_DIR = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
+OUTPUT_DIR  = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Comparativas con versiones previas si existen
+# Comparativa opcional de W1 con las importancias de otros modelos (BiLSTM y una CNN 2D
+# con ventanas solapadas); si los CSV no existen, sus columnas quedan vacias.
 CMP_CSV = {
-    'v32_demo':  Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v32\demo_importance.csv"),
-    'cnn2d_demo': Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_cnn2d\demo_importance.csv"),
+    'v32_demo':  Path(os.environ.get('NOBSP_CMP_DEMO_BILSTM', "./nobsp_results_bilstm/demo_importance.csv")),
+    'cnn2d_demo': Path(os.environ.get('NOBSP_CMP_DEMO_CNN2D_OVERLAP', "./nobsp_results_cnn2d_overlap/demo_importance.csv")),
 }
 
 N_SAMPLES = 500
@@ -114,7 +116,7 @@ TOP_N_W2 = 20   # top features para curves de input por evento
 TOP_N_W4 = 16   # top features para curves de post-pool
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Nombres de features V4
+# Nombres de features
 FEATURE_NAMES_DEMO = (
     [f"EPS_{i}" for i in range(10)]
     + ["Sexo_F", "Sexo_M"]
@@ -128,7 +130,7 @@ POOL_NAMES = [f"pool_d{i:02d}" for i in range(64)]             # 64 dims abstrac
 DEMO_CONTINUOUS_COLS = {'lat': 12, 'lon': 13, 'edad': 14}
 
 
-# ==================== WRAPPERS V4 ====================
+# ==================== WRAPPERS ====================
 
 class V4DemoWrapper(nn.Module):
     """W1 -- Demograficos (15 features reales). Pre-computa pool del referente."""
@@ -152,7 +154,7 @@ class V4DemoWrapper(nn.Module):
 
 
 class V4InputEventWrapper(nn.Module):
-    """W2 -- Por evento puro (100 slots = columnas del tensor V4).
+    """W2 -- Por evento puro (100 slots = columnas del tensor).
 
     Pesos perturbativos en [0.5, 1.5]^100 escalan cada columna del input
     ANTES del primer conv. Re-corre toda la CNN en cada forward (costoso).
@@ -237,28 +239,32 @@ class V4PostPoolWrapper(nn.Module):
 # ==================== HELPERS ====================
 
 def find_latest_v4_checkpoint(model_dir: Path) -> Path:
-    candidates = sorted(model_dir.glob("modelo_cnn2d_v4_pytorch_*_best.pt"))
+    # Checkpoint fijado por CNN2D_TS (model_dir se ignora); nunca "el mas reciente".
+    # Las lineas tras el return no se ejecutan.
+    import checkpoint_utils as ck
+    return ck.cnn_pt()
+    candidates = sorted(model_dir.glob("modelo_cnn2d_pytorch_*_best.pt"))
     if not candidates:
-        raise FileNotFoundError(f"No se encontro checkpoint V4 en {model_dir}")
+        raise FileNotFoundError(f"No se encontro checkpoint en {model_dir}")
     return candidates[-1]
 
 
 def find_latest_v4_metadata(data_dir: Path) -> Path:
-    candidates = sorted(data_dir.glob("metadata_v4_*.json"))
+    candidates = sorted(data_dir.glob("metadata_cnn_*.json"))
     if not candidates:
-        raise FileNotFoundError(f"No se encontro metadata_v4 en {data_dir}")
+        raise FileNotFoundError(f"No se encontro metadata en {data_dir}")
     return candidates[-1]
 
 
 def find_latest_v4_test(data_dir: Path) -> Path:
-    candidates = sorted(data_dir.glob("datos_modelo_test_v4_*.h5"))
+    candidates = sorted(data_dir.glob("datos_modelo_test_cnn_*.h5"))
     if not candidates:
-        raise FileNotFoundError(f"No se encontro test HDF5 V4 en {data_dir}")
+        raise FileNotFoundError(f"No se encontro test HDF5 en {data_dir}")
     return candidates[-1]
 
 
 def load_scalers_from_metadata(meta_path: Path) -> dict:
-    """Reconstruye StandardScalers de lat/lon/edad desde metadata_v4.json."""
+    """Reconstruye StandardScalers de lat/lon/edad desde la metadata del build (metadata_cnn_<ts>.json)."""
     with open(meta_path, 'r', encoding='utf-8') as f:
         meta = json.load(f)
     scalers = {}
@@ -319,7 +325,7 @@ def plot_temporal_contribution_heatmap(contributions_w2, save_path,
                    vmin=-cmax, vmax=cmax, interpolation='nearest')
     ax.set_xlabel("Evento (indice cronologico, 0=mas antiguo, 99=mas reciente)")
     ax.set_ylabel(f"Muestra (top {n_show} por intensidad)")
-    ax.set_title(f"NObSP W2: contribucion por evento (clase Cancer, V4)")
+    ax.set_title(f"NObSP W2: contribucion por evento (clase Cancer)")
     fig.colorbar(im, ax=ax, label="contribucion centrada", fraction=0.046, pad=0.04)
     fig.tight_layout()
     fig.savefig(save_path, dpi=200, bbox_inches='tight')
@@ -352,7 +358,7 @@ def load_csv_importance(path: Path) -> dict:
     return out
 
 
-def run_nobsp(name, wrapper, X_input, feature_names, output_dir, notifier,
+def run_nobsp(name, wrapper, X_input, feature_names, output_dir,
               method='alpha', reg=1e-4, top_n_curves=None,
               x_for_plot=None, extra_plot_fn=None):
     """Ejecuta NObSP, guarda plots + CSV + explainer.
@@ -367,7 +373,7 @@ def run_nobsp(name, wrapper, X_input, feature_names, output_dir, notifier,
                       plots adicionales (e.g. heatmap temporal en W2).
     """
     t0 = time.time()
-    print(f"\n{'='*64}\n  NObSP V4 -- {name}\n{'='*64}", flush=True)
+    print(f"\n{'='*64}\n  NObSP -- {name}\n{'='*64}", flush=True)
     print(f"  features: {len(feature_names)}, samples: {len(X_input)}", flush=True)
 
     explainer = TabularExplainer(
@@ -423,15 +429,12 @@ def run_nobsp(name, wrapper, X_input, feature_names, output_dir, notifier,
 
     elapsed = time.time() - t0
     print(f"  -> {name} listo en {elapsed:.1f}s", flush=True)
-    notifier.notify_warning(f"NObSP V4 {name} listo en {elapsed:.1f}s")
     return mean_imp, sorted_idx
 
 
 # ==================== MAIN ====================
 
 def main():
-    notifier = MPCNotifier(enabled=True)
-
     # Encontrar artefactos
     model_pt = find_latest_v4_checkpoint(MODEL_DIR)
     meta_pt  = find_latest_v4_metadata(V4_DATA_DIR)
@@ -440,17 +443,10 @@ def main():
     print(f"Metadata:   {meta_pt}", flush=True)
     print(f"Test data:  {test_pt}", flush=True)
 
-    notifier.notify_start("NObSP V4 (4 puntos)", {
-        'model': model_pt.name,
-        'data': test_pt.name,
-        'n_samples': N_SAMPLES,
-        'device': str(DEVICE),
-        'output_dir': str(OUTPUT_DIR),
-    })
     t_global = time.time()
 
     # --- 1. Datos + scalers ---
-    print("\n[1/8] Cargando datos test V4 y scalers de metadata...", flush=True)
+    print("\n[1/8] Cargando datos test y scalers de metadata...", flush=True)
     scalers, meta = load_scalers_from_metadata(meta_pt)
     print(f"  scalers: lat mu={scalers['lat'].mean_[0]:.4f} sigma={scalers['lat'].scale_[0]:.4f}")
     print(f"           lon mu={scalers['lon'].mean_[0]:.4f} sigma={scalers['lon'].scale_[0]:.4f}")
@@ -474,7 +470,7 @@ def main():
     x_demo_ref   = torch.from_numpy(X_demo.mean(axis=0)).to(DEVICE)     # (15,)
 
     # --- 2. Modelo ---
-    print("\n[2/8] Cargando modelo V4...", flush=True)
+    print("\n[2/8] Cargando modelo...", flush=True)
     model = CNN2DModelV4(n_features=1541, n_eventos=100, n_demograficos=15).to(DEVICE)
     model.load_state_dict(torch.load(model_pt, map_location=DEVICE, weights_only=True))
     model.eval()
@@ -502,7 +498,7 @@ def main():
     # --- 4. W1 Demograficos (15 features, full curves + heatmap, inverse scaler) ---
     wrapper_demo = V4DemoWrapper(model, pooled_ref).to(DEVICE).eval()
     imp_demo, idx_demo = run_nobsp(
-        "demo", wrapper_demo, X_demo, FEATURE_NAMES_DEMO, OUTPUT_DIR, notifier,
+        "demo", wrapper_demo, X_demo, FEATURE_NAMES_DEMO, OUTPUT_DIR,
         top_n_curves=None,            # plot all 15
         x_for_plot=X_demo_real,       # eje X en grados/anios reales
     )
@@ -512,7 +508,7 @@ def main():
     X_input_weights = (1.0 + rng.uniform(-0.5, 0.5, size=(N_SAMPLES, 100))).astype(np.float32)
     imp_input, idx_input = run_nobsp(
         "input_event", wrapper_input, X_input_weights, EVENT_NAMES,
-        OUTPUT_DIR, notifier,
+        OUTPUT_DIR,
         top_n_curves=TOP_N_W2,
         extra_plot_fn=lambda c, d, n: plot_temporal_contribution_heatmap(
             c, d / f"{n}_temporal_heatmap.png"
@@ -524,12 +520,12 @@ def main():
     X_pre_weights = (1.0 + rng.uniform(-0.5, 0.5, size=(N_SAMPLES, W_pool))).astype(np.float32)
     imp_pre, idx_pre = run_nobsp(
         "pre_pool", wrapper_pre, X_pre_weights, TEMPORAL_BUCKET_NAMES,
-        OUTPUT_DIR, notifier,
+        OUTPUT_DIR,
         top_n_curves=None,            # plot all W_pool
         extra_plot_fn=lambda c, d, n: plot_bucket_bar(
             np.abs(c).mean(axis=(0,2)), TEMPORAL_BUCKET_NAMES,
             d / f"{n}_bucket_bar.png",
-            f"NObSP W3 V4: importancia por bucket temporal (W_pool={W_pool})"
+            f"NObSP W3: importancia por bucket temporal (W_pool={W_pool})"
         ),
     )
 
@@ -538,12 +534,12 @@ def main():
     X_pool_weights = (1.0 + rng.uniform(-0.5, 0.5, size=(N_SAMPLES, 64))).astype(np.float32)
     imp_pool, idx_pool = run_nobsp(
         "post_pool", wrapper_pool, X_pool_weights, POOL_NAMES,
-        OUTPUT_DIR, notifier,
+        OUTPUT_DIR,
         top_n_curves=TOP_N_W4,
     )
 
-    # --- 8. Comparativa demograficos V4 vs V3.2 y vs CNN 2D Camino 1 ---
-    print("\n[8/8] Comparativa demograficos V4 vs versiones previas...", flush=True)
+    # --- 8. Comparativa opcional de W1 con otros modelos (CMP_CSV) ---
+    print("\n[8/8] Comparativa demograficos con otros modelos...", flush=True)
     cmp_path = OUTPUT_DIR / "compare_demo_v4_vs_prior.csv"
     prev = {k: load_csv_importance(p) for k, p in CMP_CSV.items()}
     v4_imp_dict = {FEATURE_NAMES_DEMO[i]: float(imp_demo[i]) for i in range(len(FEATURE_NAMES_DEMO))}
@@ -571,29 +567,10 @@ def main():
     elapsed = time.time() - t_global
     print(f"\nDONE en {elapsed/60:.1f} min", flush=True)
 
-    notifier.notify_complete(
-        "NObSP V4 (4 puntos)", elapsed,
-        kpis={
-            'demo_top1':       f"{FEATURE_NAMES_DEMO[idx_demo[0]]} ({imp_demo[idx_demo[0]]:.4f})",
-            'demo_top2':       f"{FEATURE_NAMES_DEMO[idx_demo[1]]} ({imp_demo[idx_demo[1]]:.4f})",
-            'input_top1':      f"{EVENT_NAMES[idx_input[0]]} ({imp_input[idx_input[0]]:.4f})",
-            'input_top2':      f"{EVENT_NAMES[idx_input[1]]} ({imp_input[idx_input[1]]:.4f})",
-            'pre_pool_top1':   f"{TEMPORAL_BUCKET_NAMES[idx_pre[0]]} ({imp_pre[idx_pre[0]]:.4f})",
-            'post_pool_top1':  f"{POOL_NAMES[idx_pool[0]]} ({imp_pool[idx_pool[0]]:.4f})",
-        },
-        config={'output_dir': str(OUTPUT_DIR), 'samples': N_SAMPLES},
-    )
-
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
-        tb = traceback.format_exc()
-        try:
-            n = MPCNotifier(enabled=True)
-            n.notify_error(type(e).__name__, str(e), traceback_text=tb)
-        except Exception:
-            pass
-        print(tb, flush=True)
+    except Exception:
+        print(traceback.format_exc(), flush=True)
         raise

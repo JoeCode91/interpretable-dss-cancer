@@ -7,10 +7,11 @@ REPRODUCES IN THE THESIS
     blocking (B_w = 1), which is what this script runs.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Sensitivity_DA_T4_V2.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
-    at the repository root for the complete list of differences.
+    unchanged; the import of the notification module was made optional, and comments
+    were edited.
+    See CHANGES-FROM-THESIS.md at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
 Dual-Agent Replicator-MPC without active-set (no slack E), Bw=1 always.
@@ -46,11 +47,11 @@ Intra-variability (gamma_3, for Sims 5-10):
   Sum over 4 populations, scaled by w_intra
 
 WARNING: Bw=1 with Hp=100 means 200 NLP decision variables per step -> VERY slow.
-Expected runtime: hours to days per config on home PC.
+Expected runtime: hours to days per config on a desktop workstation.
 
 Output: Sensitivity_DA_T4/{Datos,Imagenes}/
 
-Runs on: Home PC (128GB RAM)
+Runs on: a workstation with 128 GB RAM
 Usage: python Sensitivity_DA_T4.py [--test]
 
 Based on: Sensitivity_DA.py, MPC_Code_Art2.py (Cond_Opti 0-9), MPC_Replicator_DA_V3.py
@@ -83,7 +84,17 @@ import sys
 import os
 import csv
 
-from telegram_notifier import MPCNotifier
+# Optional notifications: telegram_notifier.py is not distributed with this repository.
+# Without it every notifier call is a no-op and nothing else changes.
+try:
+    from telegram_notifier import MPCNotifier
+except ImportError:
+    class MPCNotifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
 
 # Force unbuffered output
 print = lambda *args, **kwargs: __builtins__.__dict__['print'](*args, **{**kwargs, 'flush': True})

@@ -1,31 +1,29 @@
 """
-Threshold sweep V4 (A6) -- Cap. 4 NObSP, CNN 2D V4 Camino 2 Alex.
+threshold_sweep_v4.py -- barrido del umbral de decision de la CNN 2D.
 
 REPRODUCES IN THE THESIS
     Operating-threshold sweep: the Youden-optimal thresholds of Section 4.7.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults, a printed
+    table of hard-coded figures of earlier models was removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
-
-El run de training V4 (modelo_cnn2d_v4_pytorch_20260519_043106) guardo
-evaluacion.json con metricas en thresholds 0.5 y 0.3 unicamente. Este
-script:
-  1. Carga el checkpoint best
-  2. Re-corre val + test sets con CNN2DModelV4
+  1. Carga el checkpoint best del run fijado por CNN2D_TS (obligatorio; CNN2D_OUT,
+     CNN2D_TAG opcionales)
+  2. Re-corre val + test (CNN2D_VAL / CNN2D_TEST, por defecto los mas recientes)
   3. Threshold sweep fino (paso 0.01) sobre val para encontrar tau* Youden
   4. Aplica tau* a test
-  5. Reescribe evaluacion.json (completo) + threshold_sweep_val.csv
-  6. Imprime resumen comparativo V2 / V3.1 / V3.2 / Camino 1 / V4
+  5. Escribe *_evaluacion_sweep.json (no pisa el evaluacion.json del entrenamiento),
+     *_threshold_sweep.csv y *_probas.npz (probabilidades de val y test)
+Guarda la average precision (ap_val, ap_test) y, solo como referencia, el AUC-PR por
+trapecios sobre la curva precision-recall (auc_pr_trapz_*). Las cifras finales de AUC-PR
+salen de average precision (recalculo_aucpr_final.py).
 
-Uso (en la PowerShell con D:\venv_torch_cu121 activado):
-    D:\venv_torch_cu121\Scripts\python.exe -u threshold_sweep_v4.py
-
-Autor: Johan S. Pena-Campos
-Fecha: 2026-05-21 (sesion 33, A6)
+Uso:
+    CNN2D_TS=<timestamp> python -u threshold_sweep_v4.py
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -41,6 +39,9 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 import os
 import sys
 import json
@@ -56,7 +57,9 @@ from sklearn.metrics import (
     roc_auc_score, precision_recall_curve, auc, confusion_matrix
 )
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Modulos hermanos del repositorio
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "models"))
 from modelo_cnn2d_v4_pytorch import CNN2DModelV4
 from Modelo_Predictivo_CNN2D_V4 import (
     HDF5DatasetV4, find_latest_v4_split,
@@ -64,14 +67,14 @@ from Modelo_Predictivo_CNN2D_V4 import (
 )
 
 # ===== CONFIG =====
-TIMESTAMP = "20260519_043106"
-MODEL_NAME = f"modelo_cnn2d_v4_pytorch_{TIMESTAMP}"
+TIMESTAMP = os.environ["CNN2D_TS"]                          # obligatorio
+MODEL_NAME = f"modelo_{os.environ.get('CNN2D_TAG', 'cnn2d')}_pytorch_{TIMESTAMP}"
 OUTPUT_DIR = Path(os.environ.get(
-    "CNN2D_V4_OUT", r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch"
+    "CNN2D_OUT", "./batches/Modelos_CNN2D_PyTorch"
 ))
 BEST_PT = OUTPUT_DIR / f"{MODEL_NAME}_best.pt"
 HISTORY_JSON = OUTPUT_DIR / f"{MODEL_NAME}_history.json"
-EVALUACION_JSON = OUTPUT_DIR / f"{MODEL_NAME}_evaluacion.json"
+EVALUACION_JSON = OUTPUT_DIR / f"{MODEL_NAME}_evaluacion_sweep.json"   # no pisa el del training
 
 
 @torch.no_grad()
@@ -104,7 +107,7 @@ def metrics_at_threshold(y, p, threshold):
 
 def main():
     print("=" * 78, flush=True)
-    print(f"V4 Threshold Sweep ({MODEL_NAME})", flush=True)
+    print(f"Threshold Sweep ({MODEL_NAME})", flush=True)
     print("=" * 78, flush=True)
 
     if not BEST_PT.exists():
@@ -115,9 +118,9 @@ def main():
     print(f"Device: {device}", flush=True)
     print(f"Checkpoint: {BEST_PT}", flush=True)
 
-    # Resolver paths HDF5 V4 (auto-detect latest)
-    val_path = os.environ.get("CNN2D_V4_VAL", "")
-    test_path = os.environ.get("CNN2D_V4_TEST", "")
+    # Resolver paths HDF5 (por defecto los mas recientes)
+    val_path = os.environ.get("CNN2D_VAL", "")
+    test_path = os.environ.get("CNN2D_TEST", "")
     if not val_path:
         val_path = find_latest_v4_split("val")
     if not test_path:
@@ -180,6 +183,11 @@ def main():
     auc_roc_test = float(roc_auc_score(y_test, p_test))
     pr_t, rc_t, _ = precision_recall_curve(y_test, p_test)
     auc_pr_test = float(auc(rc_t, pr_t))
+    # average precision (la metrica reportada) ademas del AUC-PR trapezoidal
+    from sklearn.metrics import average_precision_score
+    ap_val = float(average_precision_score(y_val, p_val))
+    ap_test = float(average_precision_score(y_test, p_test))
+    print(f"  AP val {ap_val:.4f} | AP test {ap_test:.4f} | (trapecio val {auc_pr_val:.4f}, test {auc_pr_test:.4f})", flush=True)
 
     # Threshold sweep val (paso 0.01)
     print("\n[4/4] Threshold sweep val (paso 0.01, 99 puntos)...", flush=True)
@@ -219,27 +227,28 @@ def main():
         best_epoch = int(np.argmax(history['val_composite'])) + 1
         best_composite = float(max(history['val_composite']))
 
-    # Sobrescribir evaluacion.json (mantener auc_roc/auc_pr top-level, threshold_05/30,
-    # agregar tau Youden y metricas val)
+    # *_evaluacion_sweep.json: auc_roc/ap top-level, threshold_05/30, tau Youden y metricas val
     eval_data = {
         'auc_roc_val': auc_roc_val,
-        'auc_pr_val':  auc_pr_val,
+        'auc_pr_trapz_val': auc_pr_val,     # AUC-PR por trapecios (solo referencia)
+        'ap_val': ap_val,
         'auc_roc_test': auc_roc_test,
-        'auc_pr_test':  auc_pr_test,
-        # Mantener compatibilidad con el evaluacion.json original
+        'auc_pr_trapz_test': auc_pr_test,
+        'ap_test': ap_test,
+        # claves con el mismo esquema que evaluacion.json del entrenamiento
         'auc_roc': auc_roc_test,
-        'auc_pr':  auc_pr_test,
+        'ap': ap_test, 'auc_pr_trapz': auc_pr_test,
         'threshold_05': {
             **{k: (float(v) if isinstance(v, (np.floating, np.integer)) else v)
                for k, v in test_05.items()},
             'auc_roc': auc_roc_test,
-            'auc_pr':  auc_pr_test,
+            'ap': ap_test, 'auc_pr_trapz': auc_pr_test,
         },
         'threshold_03': {
             **{k: (float(v) if isinstance(v, (np.floating, np.integer)) else v)
                for k, v in test_03.items()},
             'auc_roc': auc_roc_test,
-            'auc_pr':  auc_pr_test,
+            'ap': ap_test, 'auc_pr_trapz': auc_pr_test,
         },
         'tau_youden_val': float(tau_youden),
         'threshold_youden_test': {
@@ -288,7 +297,7 @@ def main():
     n_pos_test = int(y_test.sum())
     print("\n" + "=" * 78, flush=True)
     print(
-        f" V4 SUMMARY (test set, n={len(y_test)}, {n_pos_test} positives)",
+        f" SUMMARY (test set, n={len(y_test)}, {n_pos_test} positives)",
         flush=True,
     )
     print("=" * 78, flush=True)
@@ -319,40 +328,6 @@ def main():
             flush=True,
         )
 
-    print("\n" + "=" * 78, flush=True)
-    print(" COMPARATIVO V2 / V3.1 / V3.2 / Camino 1 / V4 (Youden tau*)", flush=True)
-    print("=" * 78, flush=True)
-    print(
-        "  Model     | tau*   | AUC-ROC | AUC-PR | Sens   | Spec   | J",
-        flush=True,
-    )
-    print(
-        "  ----------|--------|---------|--------|--------|--------|--------",
-        flush=True,
-    )
-    print(
-        "  V2        | 0.49   | 0.815   | 0.052  | 0.781  | 0.744  | +0.525",
-        flush=True,
-    )
-    print(
-        "  V3.1      | 0.53   | 0.813   | 0.051  | 0.781  | 0.723  | +0.504",
-        flush=True,
-    )
-    print(
-        "  V3.2      | 0.78   | 0.836   | 0.086  | 0.656  | 0.866  | +0.522",
-        flush=True,
-    )
-    print(
-        "  Camino 1  |  --    |  --     | 0.123  |  --    |  --    |  --     "
-        "(pendiente sweep formal)",
-        flush=True,
-    )
-    print(
-        f"  V4 (este) | {tau_youden:.2f}   | {auc_roc_test:.3f}   | "
-        f"{auc_pr_test:.3f}  | {test_youden['sens']:.3f}  | "
-        f"{test_youden['spec']:.3f}  | {test_youden['J']:+.4f}",
-        flush=True,
-    )
     print("=" * 78, flush=True)
 
 

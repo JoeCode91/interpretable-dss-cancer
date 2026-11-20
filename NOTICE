@@ -67,12 +67,17 @@ and correcting errors, and for writing the documentation of this repository.
 The research design, the models, the experiments and the interpretation of the
 results are the author's.
 
-Three files were drafted with AI assistance rather than merely reviewed with
-it, and say so in their own headers:
+Seven files were written with the assistance of generative AI, to the author's
+specification, rather than merely reviewed with it, and say so in their own
+headers:
 
     adaptive-therapy/analysis/Equilibrios_Estabilidad.py
     adaptive-therapy/baselines/Baseline_LVMPC_DA_Matched.py
     gastric-risk/data/synthetic/generate_synthetic_cohort.py
+    gastric-risk/data/parseo_fechas.py
+    gastric-risk/data/seleccion.py
+    gastric-risk/data/carga_filtrada.py
+    gastric-risk/training/checkpoint_utils.py
 
 The distinction is recorded here so that it is not lost. Every file was
 reviewed by the author, who takes full responsibility for the content of this

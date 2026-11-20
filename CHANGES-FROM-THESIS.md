@@ -12,7 +12,20 @@ The working tree that produced the results is archived separately and unchanged.
 
 - **Provenance headers.** Every published file carries a `REPRODUCES IN THE THESIS` block
   naming the section, table or figure it produces, and a `PROVENANCE` block stating that
-  the computational content is unchanged. Nothing else in those files was touched.
+  the computational content is unchanged. In `adaptive-therapy` and `nobsp` nothing else
+  in those files was touched.
+- **`gastric-risk` files.** Besides the headers, the published files of `gastric-risk`
+  differ from the working tree in presentation only: absolute paths were replaced by
+  relative defaults under `./batches` and by environment variables; notification calls
+  were removed; comments were edited so that they describe what the code does; and
+  version suffixes were dropped from output file names and environment variables (for
+  example `datos_modelo_train_cnn_<ts>.h5`, `CNN2D_TS`). `training/threshold_sweep_v4.py`
+  no longer prints a table of hard-coded figures of earlier models, and the CNN-2D training
+  script no longer has a test-only switch that killed the process after a given epoch.
+  The loss and checkpoint criterion that the CNN-2D training script imported from the
+  BiLSTM-Attention training script are published, unchanged, as
+  `training/perdida_hibrida.py`. Optional identity checks against files of earlier builds
+  are kept but only run when those files are given through environment variables.
 - **Directory layout.** The working tree was flat (`Modelos_Replicator/Codigos/`,
   `XAI_Model/`). Here it is organized by contribution. **Scripts that write results to
   relative paths will create those directories wherever they are run from.**
@@ -25,11 +38,14 @@ Not everything was carried over. Three categories were left out:
   produced the reported result is published. For `adaptive-therapy` that means the `_V3`
   controllers and sweeps; the earlier `MPC_Replicator_SA.py`, `_V2`, `MPC_Replicator_DA.py`,
   `_V2`, `Sensitivity_SA.py`, `_V1`, `_V2`, `Sensitivity_DA_T4.py`, `_V1`,
-  `Sensitivity_DA_T5A.py` and `Sensitivity_DA_T5B.py` are not included.
+  `Sensitivity_DA_T5A.py` and `Sensitivity_DA_T5B.py` are not included. For
+  `gastric-risk`, the builder and training script of the BiLSTM-Attention comparison model
+  are not included either; the scripts that compare against it read its saved outputs.
 - **Environment checks and exploratory scripts.** They produce no result reported in the
   thesis.
 - **Credentials.** `telegram_notifier.py` carried a bot token and is excluded. Scripts that
-  imported it degrade gracefully when it is absent.
+  imported it degrade gracefully when it is absent; in `gastric-risk` the notification
+  calls were removed altogether.
 
 ## 3. One correction
 

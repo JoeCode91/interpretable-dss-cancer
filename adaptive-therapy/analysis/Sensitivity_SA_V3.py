@@ -5,10 +5,10 @@ REPRODUCES IN THE THESIS
     Single-agent sensitivity sweep: Tables tab:rep_sa_sensitivity and tab:rep_sa_full.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Sensitivity_SA_V3.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
-    at the repository root for the complete list of differences.
+    unchanged; the import of the notification module was made optional.
+    See CHANGES-FROM-THESIS.md at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
 V3: Fixes Hp>=80 divergence by using u_prev=0.0 (initial guess fix).
@@ -66,7 +66,17 @@ import sys
 import os
 import csv
 
-from telegram_notifier import MPCNotifier
+# Optional notifications: telegram_notifier.py is not distributed with this repository.
+# Without it every notifier call is a no-op and nothing else changes.
+try:
+    from telegram_notifier import MPCNotifier
+except ImportError:
+    class MPCNotifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
 
 # Force unbuffered output for real-time logging
 print = lambda *args, **kwargs: __builtins__.__dict__['print'](*args, **{**kwargs, 'flush': True})

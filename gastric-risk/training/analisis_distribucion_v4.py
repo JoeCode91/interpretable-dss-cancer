@@ -2,12 +2,14 @@
 analisis_distribucion_v4.py -- Distribution analysis for V4 test data.
 
 REPRODUCES IN THE THESIS
-    Distribution of predicted scores, Section 4.7.
+    Analysis from the model-development stage, on the 1:100 cohort built for the earlier
+    CNN-2D model: event-count distribution, cancer rate by latitude and by insurer. Not
+    part of the final pipeline.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults, and comments were edited. See
+    CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
@@ -27,6 +29,9 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 import glob
 from pathlib import Path
 import numpy as np
@@ -35,8 +40,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-OUTPUT = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4")
-V4_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
+OUTPUT = Path("./batches/Resultados/nobsp_results_v4")
+V4_DIR = Path("./batches/Datos_Modelo_V4")
 SCALERS = {'lat': (5.6452, 2.2558), 'lon': (-74.9218, 1.0864), 'edad': (52.8734, 14.9610)}
 
 plt.rcParams.update({

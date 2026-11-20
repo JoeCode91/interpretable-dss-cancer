@@ -5,9 +5,10 @@ REPRODUCES IN THE THESIS
     Convergence of the NObSP beta coefficients, Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
@@ -18,6 +19,9 @@ correlacion de Pearson beta(n) vs beta(n_max). Tambien la COMPLETITUD
 ser ~1 (descomposicion aditiva del metodo alpha).
 
 Si beta(500) ~ beta(n_max) (r alto) y la completitud ~1, los beta a n=500 validados.
+
+Referencia: la media de la muestra B (calib_index.npz en NOBSP_RUNB_DIR, leida con
+r2_calib). El checkpoint se fija con CNN2D_TS (training/checkpoint_utils.py).
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -33,14 +37,18 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import os
 import sys
 import glob
 from pathlib import Path
 
-# Insertar nobsp_lib/src al FRENTE para que 'from nobsp_lib import' resuelva el
-# paquete real (no el directorio local que lo sombrea).
-_SRC = Path(__file__).parent / "nobsp_lib" / "src"
-sys.path.insert(0, str(_SRC))
+# Modulos hermanos del repositorio
+_HERE = Path(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "models", _HERE.parent / "training"):
+    sys.path.insert(0, str(_d))
 
 import numpy as np
 import torch
@@ -49,11 +57,11 @@ import torch.nn.functional as F
 
 from nobsp_lib import TabularExplainer
 from modelo_cnn2d_v4_pytorch import CNN2DModelV4
-import r2_calib
+import r2_calib as r2_calib
+import checkpoint_utils as ck
 
-MODEL_DIR = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
-R2_DIR = r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4_traintest"
-V4_DATA = r"D:\Proyecto_CC_Batches\Datos_Modelo_V4"
+R2_DIR = os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest")
+V4_DATA = os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN")
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -133,7 +141,8 @@ def main():
     X_events, X_demo, y = r2_calib.load_r2_calib(R2_DIR, V4_DATA, need_events=True)
     X_events = X_events.astype(np.float32); X_demo = X_demo.astype(np.float32)
     model = CNN2DModelV4(n_features=1541, n_eventos=100, n_demograficos=15).to(DEVICE)
-    ckpt = sorted(glob.glob(str(MODEL_DIR / "*best*.pt")))[-1]
+    ckpt = ck.cnn_pt()   # checkpoint fijado por CNN2D_TS
+    print("checkpoint", ckpt, flush=True)
     model.load_state_dict(torch.load(ckpt, map_location=DEVICE, weights_only=True))
     model.eval()
     x_events_ref = torch.from_numpy(X_events.mean(0)).to(DEVICE)

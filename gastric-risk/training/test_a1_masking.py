@@ -2,21 +2,20 @@
 Test empirico A1: X_mascaras NO afecta las predicciones del modelo V2?
 
 REPRODUCES IN THE THESIS
-    Empirical test A1: shows that the masking tensor of Model V2 does not affect its
-    predictions. This is what motivates the explicit-masking correction of V3.1,
-    Section 4.4.
+    Empirical test from the model-development stage: shows that the masking tensor of
+    Model V2 does not affect its predictions, which is why Model V3.1 applies the mask
+    explicitly, Section 4.4. Not part of the final pipeline.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults, and comments were edited. See
+    CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
 Si las predicciones con mascara real, mascara cero y mascara uno son
 IDENTICAS hasta la precision de float32, queda probado empiricamente que
-la mascara esta aislada del grafo computacional (hallazgo A1 del
-TODO_Cap4_Correcciones.md).
+la mascara esta aislada del grafo computacional (hipotesis A1).
 
 Esto valida que:
   - El gradiente de la perdida no fluye hacia X_mascaras
@@ -30,9 +29,6 @@ Salida esperada bajo A1 verdadero:
   - max |diff| < 1e-5  (idealmente 0.0)
   - mean |diff| < 1e-5
 
-Autor: Johan S. Pena-Campos
-Fecha: 2026-05-05
-Sesion: 23 (auditoria pre V3.1)
 
 AUTHORSHIP
     Johan S. Pena-Campos

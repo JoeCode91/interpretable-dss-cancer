@@ -6,9 +6,9 @@ REPRODUCES IN THE THESIS
     the embedding comparison table in Section 4.2.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults and environment variables, and
+    comments were edited. See CHANGES-FROM-THESIS.md at the repository root.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -24,13 +24,17 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 
+import os
 from pathlib import Path
 import numpy as np
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans
 
-EMB_DIR = Path(r"D:\Proyecto_CC_Batches\Embeddings\BERT")
+EMB_DIR = Path(os.environ.get("EMB_DIR", "./batches/Embeddings/BERT"))
 DIAG_V2 = EMB_DIR / "bert_embeddings_diag_completos_20251028_061258.npz"
 PROC_V2 = EMB_DIR / "bert_embeddings_proc_completos_20251028_061307.npz"
 DIAG_V32 = EMB_DIR / "bert_embeddings_diag_completos_v32_20260506_064131.npz"

@@ -1,13 +1,31 @@
 """
-analisis_atribucion_individual.py
+analisis_atribucion_individual.py -- how much the attribution varies between patients.
 
 REPRODUCES IN THE THESIS
     Per-patient attribution, Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
+
+--------------------------------------------------------------------------
+
+Cuanto varia la atribucion ENTRE PACIENTES.
+
+La pregunta de fondo: el articulo usa la interpretabilidad como auditoria de
+poblacion. Para que sirva a un clinico ante UN paciente, la explicacion tiene
+que ser distinta entre pacientes. Si a todos les sale lo mismo, la atribucion
+individual no aporta informacion aunque exista.
+
+Se mide sobre las salidas de NObSP de la muestra B (NOBSP_RUNB_DIR):
+  demo_explainer.npz         W1, contributions (n_pacientes, 15, 2)
+  input_event_explainer.npz  W2, contributions (n_sondas, 100, 2)
+
+Muestra B: todos los cancer de train (100:1) y test, y el mismo numero de no cancer
+de train+test (RandomState(42)). Las filas de W2 son las 500 sondas multiplicativas
+alrededor de la media de esa muestra, no pacientes.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -23,26 +41,16 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import os
 
-# -*- coding: utf-8 -*-
-"""
-Cuanto varia la atribucion ENTRE PACIENTES.
-
-La pregunta de fondo: el articulo usa la interpretabilidad como auditoria de
-poblacion. Para que sirva a un clinico ante UN paciente, la explicacion tiene
-que ser distinta entre pacientes. Si a todos les sale lo mismo, la atribucion
-individual no aporta informacion aunque exista.
-
-Se mide sobre los ficheros que ya estan en Drive:
-  nobsp_results_v4/demo_explainer.npz        contributions (500, 15, 2)
-  nobsp_results_v4/input_event_explainer.npz contributions (500, 100, 2)
-"""
 import numpy as np
 
-BASE = (r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model"
-        r"\nobsp_results_v4")
+BASE = os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest")
 
-demo = np.load(BASE + r"\demo_explainer.npz", allow_pickle=True)
+demo = np.load(os.path.join(BASE, "demo_explainer.npz"), allow_pickle=True)
 C = demo['contributions']                     # (500, 15, 2)
 nombres = [str(x) for x in demo['feature_names']]
 clases = [str(x) for x in demo['class_names']]
@@ -103,13 +111,20 @@ print()
 print("=" * 78)
 print("(4) LO MISMO PARA LAS 100 POSICIONES DE EVENTO")
 print("=" * 78)
-ev = np.load(BASE + r"\input_event_explainer.npz", allow_pickle=True)
+ev = np.load(os.path.join(BASE, "input_event_explainer.npz"), allow_pickle=True)
 E = np.abs(ev['contributions'][:, :, 1])      # (500, 100)
+# Las filas de W2 son 500 SONDAS (perturbaciones de la media de la muestra), no
+# pacientes; su numero no coincide con el de W1 (1.734), asi que se usa un indice
+# propio. Se informan como sondas, no como pacientes.
+print("  AVISO: filas de W2 = sondas de perturbacion, no pacientes")
+n_e = E.shape[0]
+idx_e = rng.choice(n_e, size=min(300, n_e), replace=False)
 Pe = E / np.maximum(E.sum(axis=1, keepdims=True), 1e-12)
-Pen = Pe[idx] / np.maximum(np.linalg.norm(Pe[idx], axis=1, keepdims=True), 1e-12)
+Pen = Pe[idx_e] / np.maximum(np.linalg.norm(Pe[idx_e], axis=1, keepdims=True), 1e-12)
 Se = Pen @ Pen.T
 cose = Se[np.triu_indices(Se.shape[0], k=1)]
-print("  similitud coseno entre perfiles temporales de pacientes distintos:")
+print("  similitud coseno entre perfiles de SONDAS de perturbacion alrededor de una referencia (no pacientes);")
+print("  mide sensibilidad local alrededor de la referencia, NO variabilidad entre pacientes:")
 print("     media %.4f   mediana %.4f   P5 %.4f   P95 %.4f"
       % (cose.mean(), np.median(cose), np.percentile(cose, 5), np.percentile(cose, 95)))
 pos_dom = np.argmax(E, axis=1)
@@ -117,4 +132,4 @@ c2 = np.bincount(pos_dom, minlength=100)
 top = np.argsort(-c2)[:5]
 print("  posicion de evento dominante, las 5 mas frecuentes:")
 for p_ in top:
-    print("     e%03d en %3d de %d pacientes (%.1f%%)" % (p_, c2[p_], n, 100 * c2[p_] / n))
+    print("     e%03d en %3d de %d sondas (%.1f%%)" % (p_, c2[p_], n_e, 100 * c2[p_] / n_e))

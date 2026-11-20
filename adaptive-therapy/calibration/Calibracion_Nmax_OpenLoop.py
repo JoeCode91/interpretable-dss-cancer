@@ -5,10 +5,10 @@ REPRODUCES IN THE THESIS
     Calibration of N_max by open-loop NRMSE, Section 6.5.1 (subsec:rep_nmax_calibration).
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Calibracion_Nmax_OpenLoop.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
-    at the repository root for the complete list of differences.
+    unchanged; the import of the notification module was made optional.
+    See CHANGES-FROM-THESIS.md at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
 Sweeps N_max values and compares Lotka-Volterra vs Replicator+ZF open-loop dynamics
@@ -48,8 +48,17 @@ import time
 import sys
 import traceback
 
-# Telegram notifications
-from telegram_notifier import MPCNotifier
+# Optional notifications: telegram_notifier.py is not distributed with this repository.
+# Without it every notifier call is a no-op and nothing else changes.
+try:
+    from telegram_notifier import MPCNotifier
+except ImportError:
+    class MPCNotifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
 
 # Force unbuffered output
 print = lambda *args, **kwargs: __builtins__.__dict__['print'](*args, **{**kwargs, 'flush': True})

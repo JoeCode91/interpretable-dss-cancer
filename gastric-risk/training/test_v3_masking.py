@@ -2,12 +2,12 @@
 Test V3.1 -- validacion del masking ANTES de lanzar entrenamiento
 
 REPRODUCES IN THE THESIS
-    Validates the explicit masking of Model V3.1 before training, Section 4.4.
+    Test from the model-development stage: validates the explicit masking of Model
+    V3.1 before training, Section 4.4. Not part of the final pipeline.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    comments were edited. See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
@@ -25,8 +25,6 @@ Comparativa esperada:
 
 Si el test pasa, V3 esta listo para entrenamiento.
 
-Autor: Johan S. Pena-Campos
-Fecha: 2026-05-05
 
 AUTHORSHIP
     Johan S. Pena-Campos

@@ -1,14 +1,72 @@
+#!/usr/bin/env python3
 """
-Preparar_HDF5_V4.py
+Preparar HDF5 -- CNN 2D sobre tensor (1541, 100) por paciente, sin overlap, sin masking
 
 REPRODUCES IN THE THESIS
-    Builds the V4 HDF5 cohort: (1541, 100) per patient, 100 events without overlap, 15
-    demographic dimensions. Section 4.2 of the thesis.
+    Builds the HDF5 cohort of the CNN-2D model: (1541, 100) per patient, 100 events
+    without overlap, 15 demographic dimensions, temporal features z-scored with
+    training-partition statistics. Section 4.2 of the thesis.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
+
+--------------------------------------------------------------------------
+Estructura de eventos:
+    Secuencia plana de 100 eventos por paciente, SIN overlap.
+    Pacientes con >100 eventos: se conservan los ULTIMOS 100 (mas recientes).
+    Pacientes con <100 eventos: zero-padding al final.
+    SIN variable de masking (la CNN aprende a ignorar los ceros).
+
+Vector de cada evento (1541):
+    0-767      embedding BSC-Bio-EHR-ES del diagnostico
+    768-1535   embedding BSC-Bio-EHR-ES del procedimiento
+    1536-1540  5 variables temporales, en este orden:
+       A dias desde el primer evento registrado del paciente
+       B dias desde el evento anterior (0 en el primero)
+       C indice del evento (1..n), D indice/n, E n total
+    Las fechas se parsean con formato explicito (parseo_fechas.py); una fecha no
+    parseable toma la ultima fecha valida del paciente (si no hay previa, la
+    siguiente valida); los casos se cuentan y se reportan (fechas_calidad_cnn_*.json).
+    Las 5 temporales se estandarizan (z-score) con media/desv. calculadas SOLO en la
+    particion de entrenamiento (100:1), sobre eventos reales (no relleno), y se
+    aplican a train/val/test. El relleno queda en 0 exacto (columna toda cero =
+    relleno). Los estadisticos van en los attrs del HDF5 y en un JSON.
+
+Demograficos (15 dims):
+    - EPS one-hot              (10 dims)
+    - Sexo one-hot             (2  dims)
+    - Latitud   (StandardScaler, 1 dim)
+    - Longitud  (StandardScaler, 1 dim)
+    - Edad      (StandardScaler, 1 dim)
+    Los parametros del StandardScaler (mu, sigma) se guardan en la metadata
+    para invertir la transformacion en las graficas de NObSP.
+
+Geolocalizacion:
+    Mapa DIVIPOLA -> (lat, lon) desde DANE (Datos Abiertos Colombia), construido con
+    geo/construir_mapa_municipio_latlon.py (ruta por GEOMAP_JSON).
+
+Flujo:
+    1. y de toda la poblacion (merge de IDs por chunks) -> undersampling 100:1
+       (seed 42) y split estratificado 80/10/10 (seleccion.py). Ambos dependen
+       solo de y.
+    2. Eventos solo para los pacientes elegidos (carga_filtrada.py), en un HDF5
+       intermedio de seleccion; se borra al final.
+    3. Split train/val/test + z-score temporal.
+    Cada split guarda ademas el ID del paciente, su indice de fila en la poblacion
+    (gidx) y las temporales SIN escalar (X_temporal_raw). Los splits se escriben
+    como *.h5.partial y se renombran al completarse; el metadata_cnn_<ts>.json
+    (con "build_completo") se escribe al final.
+
+Shape final por paciente:
+    X_events:        (1541, 100)  -- 768 diag + 768 proc + 5 temporal x 100 eventos
+    X_demograficos:  (15,)
+    y:               () -- 0 o 1
+
+Rutas: BATCHES_DIR (por defecto ./batches) con Embeddings/BERT, MatChar y la salida
+Datos_Modelo_CNN; GEOMAP_JSON para el mapa DIVIPOLA.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -24,50 +82,9 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
-
-# Rutas configurables por variable de entorno. En el arbol de trabajo de la tesis
-# apuntaban a directorios locales del autor; aqui se parametrizan para que el
-# script sea ejecutable fuera de esa maquina.
-#!/usr/bin/env python3
-"""
-Preparar HDF5 V4 -- CNN 2D sobre tensor (1541, 100) por paciente, sin overlap, sin masking
-==========================================================================================
-
-Cambios principales respecto a Preparar_Datos_Modelo_HDF5_Incremental_V2.py:
-
-  Estructura de eventos (Alex, reunion 6 May 2026):
-    - V3.2: ventanas deslizantes 10 x 40 con 50% overlap = 220 eventos unicos por paciente
-    - V4:   secuencia plana de 100 eventos por paciente, SIN overlap.
-            Pacientes con >100 eventos: se conservan los ULTIMOS 100 (mas recientes).
-            Pacientes con <100 eventos: zero-padding al final.
-            SIN variable de masking (la CNN aprende a ignorar los ceros).
-
-  Demograficos (15 dims en vez de 30):
-    - EPS one-hot              (10 dims) -- igual que V2
-    - Sexo one-hot             (2  dims) -- igual que V2
-    - Latitud   (StandardScaler, 1 dim)  -- NUEVO, antes municipio en 6 dims
-    - Longitud  (StandardScaler, 1 dim)
-    - Edad      (StandardScaler, 1 dim)  -- NUEVO, antes edad bins 12 dims
-    Los parametros del StandardScaler (mu, sigma) se guardan en metadata.json
-    para invertir la transformacion en las graficas de NObSP.
-
-  Geolocalizacion:
-    Mapa DIVIPOLA -> (lat, lon) desde DANE (Datos Abiertos Colombia).
-    Construido en ./geo/mapa_municipio_latlon.json.
-
-  Shape final por paciente:
-    X_events:        (1541, 100)  -- 768 diag + 768 proc + 5 temporal x 100 eventos
-    X_demograficos:  (15,)
-    y:               () -- 0 o 1
-
-Reuso de V2:
-    - cargar_embeddings_bert_raw (mismo formato .npz)
-    - cargar_matrices (mismo generador de batches)
-    - undersampling 100:1 + train/val/test split (mismas semillas)
-
-Autor: Johan S. Pena-Campos (con asistencia Claude)
-Fecha: 2026-05-18 (sesion 29)
-"""
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -90,35 +107,40 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 warnings.filterwarnings('ignore', category=pd.errors.DtypeWarning)
 
-# Telegram notifications (best-effort import)
-sys.path.insert(0, str(Path(os.environ.get("DBMODEL_UTILS", "./utils"))))
-try:
-    from notification_manager import NotificationManager
-    NOTIFICATIONS_AVAILABLE = True
-except ImportError as e:
-    print(f"WARNING: notification_manager no disponible: {e}")
-    NOTIFICATIONS_AVAILABLE = False
-    NotificationManager = None
+# Modulos auxiliares del builder (misma carpeta)
+sys.path.insert(0, str(Path(__file__).parent))
+import parseo_fechas               # noqa: E402
+import carga_filtrada              # noqa: E402
+import seleccion                   # noqa: E402
 
 
 # ==============================================================================
-# CONFIGURACION GLOBAL V4
+# CONFIGURACION GLOBAL
 # ==============================================================================
 
 class Config:
     BASE_PATH = Path(os.environ.get("BATCHES_DIR", "./batches"))
     EMBEDDINGS_PATH_BERT = BASE_PATH / "Embeddings" / "BERT"
     MATRICES_PATH = BASE_PATH / "MatChar"
-    OUTPUT_PATH = BASE_PATH / "Datos_Modelo_V4"
+    OUTPUT_PATH = BASE_PATH / "Datos_Modelo_CNN"
     GEOCODE_MAP = Path(os.environ.get("GEOMAP_JSON", "./geo/mapa_municipio_latlon.json"))
+    # Embeddings fijados por nombre, para que ningun fichero nuevo en la carpeta cambie el build
+    EMB_DIAG_FILE = "bert_embeddings_diag_completos_v32_20260506_064131.npz"
+    EMB_PROC_FILE = "bert_embeddings_proc_completos_v32_20260506_064131.npz"
+    # Formatos de fecha (explicitos). El primero es el de MatChar_Fecha_*.csv.
+    FECHA_FORMATOS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
+    TEMPORAL_NOMBRES = ["dias_desde_primer_evento", "dias_desde_evento_anterior",
+                        "indice_evento", "indice_sobre_n", "n_eventos_total"]
+    # Columnas temporales dentro del vector de 1541
+    TEMPORAL_FILA0 = 2 * 768   # 1536
 
-    # Eventos -- nueva estructura V4
+    # Eventos
     MAX_EVENTOS = 100
     BERT_DIM = 768
     TEMPORAL_DIM = 5
     EVENTO_DIM = BERT_DIM * 2 + TEMPORAL_DIM   # 1541
 
-    # Demograficos V4 (15 dims)
+    # Demograficos (15 dims)
     CODIGO_ADMIN_CATS = 10                       # EPS one-hot
     SEXO_CATS = 2                                # Sexo one-hot
     LATLON_DIMS = 2                              # lat + lon
@@ -135,7 +157,14 @@ class Config:
     SUB_BATCH_SIZE = 2000
     CHECKPOINT_EVERY = 50
 
-    def __init__(self):
+    # Controles para pruebas pequenas (en un build completo: None / 0)
+    SOLO_BATCHES = None        # p.ej. {1}
+    SMOKE_MAX_CHUNKS = 0       # p.ej. 1 -> solo los primeros 150.000 de cada batch leido
+    SMOKE_MAX_GIDX = None      # p.ej. 60000 -> solo pacientes elegidos con gidx < 60000
+
+    def __init__(self, output_path=None):
+        if output_path is not None:            # salida alternativa (pruebas)
+            self.OUTPUT_PATH = Path(output_path)
         self.OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
@@ -164,30 +193,19 @@ def log_step(step_name: str):
 
 
 # ==============================================================================
-# CARGA DE EMBEDDINGS BSC-Bio-EHR-ES (reusa formato V3.2)
+# CARGA DE EMBEDDINGS BSC-Bio-EHR-ES
 # ==============================================================================
 
 @log_step("1. Cargar embeddings BSC-Bio-EHR-ES")
 def cargar_embeddings_bert(config: Config) -> Dict[str, Dict]:
     """
-    Carga embeddings BERT pre-generados V3.2 (BSC-Bio-EHR-ES, 768 dims).
-    Toma el archivo *_completos_v32_*.npz mas reciente (sort alfabetico).
+    Carga embeddings BERT pre-generados (BSC-Bio-EHR-ES, 768 dims) de los
+    ficheros fijados en Config (sin glob ni fallback a BioBERT).
     """
-    diag_files = sorted(config.EMBEDDINGS_PATH_BERT.glob("bert_embeddings_diag_completos_v32_*.npz"))
-    proc_files = sorted(config.EMBEDDINGS_PATH_BERT.glob("bert_embeddings_proc_completos_v32_*.npz"))
-
-    if not diag_files or not proc_files:
-        # fallback a embeddings V2 (BioBERT)
-        diag_files = sorted(config.EMBEDDINGS_PATH_BERT.glob("bert_embeddings_diag_completos_*.npz"))
-        proc_files = sorted(config.EMBEDDINGS_PATH_BERT.glob("bert_embeddings_proc_completos_*.npz"))
-
-    if not diag_files or not proc_files:
-        raise FileNotFoundError(
-            f"No se encontraron embeddings BERT en {config.EMBEDDINGS_PATH_BERT}"
-        )
-
-    diag_file = diag_files[-1]
-    proc_file = proc_files[-1]
+    diag_file = config.EMBEDDINGS_PATH_BERT / config.EMB_DIAG_FILE
+    proc_file = config.EMBEDDINGS_PATH_BERT / config.EMB_PROC_FILE
+    if not diag_file.exists() or not proc_file.exists():
+        raise FileNotFoundError(f"Faltan embeddings fijados: {diag_file} / {proc_file}")
 
     print(f"  Diagnosticos:   {diag_file.name}")
     print(f"  Procedimientos: {proc_file.name}")
@@ -218,11 +236,11 @@ def cargar_embeddings_bert(config: Config) -> Dict[str, Dict]:
 
 
 # ==============================================================================
-# CARGA DE MATRICES (generador por batches -- reusa estructura V2)
+# CARGA DE MATRICES (generador por batches; el build usa carga_filtrada.py)
 # ==============================================================================
 
 @log_step("2. Cargar matrices de caracteristicas")
-def cargar_matrices(config: Config, notifier=None):
+def cargar_matrices(config: Config):
     """
     Generador que yielde 1 batch a la vez (memoria controlada).
     Cada batch combina los 4 CSVs (Diag, Proc, Fecha, Gen) via merge inner por ID.
@@ -238,6 +256,9 @@ def cargar_matrices(config: Config, notifier=None):
     def _gen():
         CHUNKSIZE = 150000
         for batch_idx, diag_file in enumerate(diag_batches, 1):
+            # pruebas: solo los batches indicados
+            if config.SOLO_BATCHES and batch_idx not in config.SOLO_BATCHES:
+                continue
             print(f"\n[Batch {batch_idx}/{n_batches}]")
             batch_suffix = diag_file.name.replace("MatChar_Diag_batch_", "").replace(".csv", "")
 
@@ -272,6 +293,9 @@ def cargar_matrices(config: Config, notifier=None):
 
                 del diag_chunk, proc_chunk, fecha_chunk, gen_chunk, merged
                 gc.collect()
+                # pruebas: cortar tras SMOKE_MAX_CHUNKS chunks
+                if config.SMOKE_MAX_CHUNKS and chunk_num >= config.SMOKE_MAX_CHUNKS:
+                    break
 
             # Compactar y consolidar
             for i, chunk in enumerate(batch_chunks):
@@ -291,11 +315,6 @@ def cargar_matrices(config: Config, notifier=None):
             gc.collect()
 
             print(f"  Batch {batch_idx} consolidado: {len(batch_data):,} filas")
-            if notifier:
-                notifier.notify_custom(
-                    f"V4 carga: batch {batch_idx}/{n_batches} consolidado ({len(batch_data):,} filas)",
-                    emoji=""
-                )
 
             yield batch_data
             del batch_data
@@ -305,7 +324,7 @@ def cargar_matrices(config: Config, notifier=None):
 
 
 # ==============================================================================
-# GEOLOCALIZACION + SCALERS (PASO NUEVO V4)
+# GEOLOCALIZACION + SCALERS
 # ==============================================================================
 
 def cargar_mapa_geolocalizacion(config: Config) -> Dict[int, Tuple[float, float]]:
@@ -383,13 +402,13 @@ def serializar_scalers(scalers: Dict[str, StandardScaler]) -> Dict:
 
 
 # ==============================================================================
-# CREAR EVENTOS PLANOS (NUEVA -- reemplaza crear_ventanas_paciente)
+# CREAR EVENTOS PLANOS
 # ==============================================================================
 
 def crear_eventos_paciente_flat(
     diagnosticos: List[str],
     procedimientos: List[str],
-    fechas: List[int],
+    fechas: List[float],          # dias (float) desde 1970-01-01, ya parseados e imputados
     embeddings: Dict,
     config: Config
 ) -> Tuple[np.ndarray, int, int, int]:
@@ -446,12 +465,15 @@ def crear_eventos_paciente_flat(
         else:
             emb_p = default_emb
 
+        # A y B en dias. A se mide desde el PRIMER evento registrado (fechas[0]),
+        # no desde el primero de los 100 conservados. B = 0 en el primer evento.
         fecha_actual   = fechas[global_idx]
-        fecha_anterior = fechas[global_idx - 1] if global_idx > 0 else 0
+        fecha_anterior = fechas[global_idx - 1] if global_idx > 0 else fecha_actual
 
-        # 5 temporales: igual que V2 para preservar interpretacion
+        # 5 temporales (A, B, C, D, E); escala cruda aqui, el z-score se aplica
+        # despues con estadisticos de train
         temporal = np.array([
-            fecha_actual,
+            fecha_actual - fechas[0],
             fecha_actual - fecha_anterior,
             global_idx + 1,
             (global_idx + 1) / max(n_eventos_full, 1),
@@ -483,7 +505,8 @@ def crear_eventos_subbatch(
     proc_cols: List[str],
     fecha_cols: List[str],
     embeddings: Dict,
-    config: Config
+    config: Config,
+    calidad: Dict = None          # acumulador de calidad de fechas
 ) -> Tuple[np.ndarray, int, int, int]:
     """
     Procesa un sub-batch de hasta SUB_BATCH_SIZE pacientes en RAM (sin memmap).
@@ -509,13 +532,19 @@ def crear_eventos_subbatch(
                 d_s = str(d).strip(); p_s = str(p).strip()
                 if d_s and d_s != 'nan' and p_s and p_s != 'nan':
                     diags.append(d_s); procs.append(p_s)
-                    try:
-                        fechas.append(int(float(f)))
-                    except (ValueError, TypeError):
-                        fechas.append(0)
+                    # se guarda el valor crudo; se parsea por paciente mas abajo
+                    fechas.append(f)
+            elif pd.notna(d) and pd.notna(p) and calidad is not None:
+                # evento con fecha nula: se descarta y solo se cuenta
+                d_s = str(d).strip(); p_s = str(p).strip()
+                if d_s and d_s != 'nan' and p_s and p_s != 'nan':
+                    calidad["n_eventos_descartados_fecha_nula"] += 1
 
         if not diags:
             continue
+
+        # parseo con formato explicito + imputacion documentada (parseo_fechas.py)
+        fechas = parseo_fechas.fechas_paciente(fechas, calidad if calidad is not None else parseo_fechas.nueva_calidad())
 
         eventos, n_e, d_h, p_h = crear_eventos_paciente_flat(diags, procs, fechas, embeddings, config)
         X_events[idx] = eventos
@@ -527,10 +556,10 @@ def crear_eventos_subbatch(
 
 
 # ==============================================================================
-# DEMOGRAFICOS V4 (15 dims, NUEVA)
+# DEMOGRAFICOS (15 dims)
 # ==============================================================================
 
-@log_step("4. Codificar demograficos V4 (15 dims)")
+@log_step("4. Codificar demograficos (15 dims)")
 def codificar_demograficos_v4(
     df: pd.DataFrame,
     config: Config,
@@ -626,302 +655,303 @@ def codificar_demograficos_v4(
         col += 1
 
     if is_first:
-        print(f"    Demograficos V4 shape: {X.shape} (dims usadas {col}/{config.DEMOGRAFICOS_DIM})")
+        print(f"    Demograficos shape: {X.shape} (dims usadas {col}/{config.DEMOGRAFICOS_DIM})")
 
     return X, encoders
 
 
 # ==============================================================================
-# HDF5 INCREMENTAL (sin X_mascaras)
+# HDF5 DE SELECCION (solo los pacientes elegidos)
 # ==============================================================================
 
-def crear_hdf5_temporal(config: Config, timestamp: str) -> Tuple[h5py.File, Path]:
-    """Crea HDF5 temp con datasets X_events (EVENTO_DIM, MAX_EVENTOS), X_demograficos, y."""
-    output_file = config.OUTPUT_PATH / f"datos_preparados_temp_v4_{timestamp}.h5"
+def crear_hdf5_seleccion(config: Config, timestamp: str) -> Tuple[h5py.File, Path]:
+    """HDF5 intermedio solo con los pacientes elegidos, en orden de poblacion:
+    X_events, X_demograficos, y, gidx, ID y X_temporal_raw (5 x 100)."""
+    output_file = config.OUTPUT_PATH / f"datos_seleccion_{timestamp}.h5"
     f = h5py.File(output_file, 'w')
-
     f.create_dataset('X_events',
         shape=(0, config.EVENTO_DIM, config.MAX_EVENTOS),
         maxshape=(None, config.EVENTO_DIM, config.MAX_EVENTOS),
-        dtype='float32',
-        chunks=(100, config.EVENTO_DIM, config.MAX_EVENTOS),
+        dtype='float32', chunks=(100, config.EVENTO_DIM, config.MAX_EVENTOS),
         compression='gzip', compression_opts=1)
-
     f.create_dataset('X_demograficos',
-        shape=(0, config.DEMOGRAFICOS_DIM),
-        maxshape=(None, config.DEMOGRAFICOS_DIM),
-        dtype='float32',
-        chunks=(1000, config.DEMOGRAFICOS_DIM),
+        shape=(0, config.DEMOGRAFICOS_DIM), maxshape=(None, config.DEMOGRAFICOS_DIM),
+        dtype='float32', chunks=(1000, config.DEMOGRAFICOS_DIM),
         compression='gzip', compression_opts=1)
-
-    f.create_dataset('y',
-        shape=(0,), maxshape=(None,), dtype='int32',
+    f.create_dataset('y', shape=(0,), maxshape=(None,), dtype='int32',
         chunks=(1000,), compression='gzip', compression_opts=1)
-
-    print(f"  Archivo HDF5 temporal V4: {output_file}")
+    f.create_dataset('gidx', shape=(0,), maxshape=(None,), dtype='int64', chunks=(1000,))
+    f.create_dataset('ID', shape=(0,), maxshape=(None,), dtype='int64', chunks=(1000,))
+    f.create_dataset('X_temporal_raw',
+        shape=(0, config.TEMPORAL_DIM, config.MAX_EVENTOS),
+        maxshape=(None, config.TEMPORAL_DIM, config.MAX_EVENTOS),
+        dtype='float32', chunks=(1000, config.TEMPORAL_DIM, config.MAX_EVENTOS),
+        compression='gzip', compression_opts=4)
+    print(f"  Archivo HDF5 de seleccion: {output_file}")
     return f, output_file
 
 
-def write_subbatch(f: h5py.File, X_events: np.ndarray, X_demo: np.ndarray, y: np.ndarray) -> int:
+def write_subbatch(f: h5py.File, X_events: np.ndarray, X_demo: np.ndarray, y: np.ndarray,
+                   gidx: np.ndarray, ids: np.ndarray) -> int:
     n_new = len(y)
     cur = f['X_events'].shape[0]
     new = cur + n_new
-
-    f['X_events'].resize((new, *f['X_events'].shape[1:]))
-    f['X_demograficos'].resize((new, *f['X_demograficos'].shape[1:]))
-    f['y'].resize((new,))
-
+    for k in ('X_events', 'X_demograficos', 'y', 'gidx', 'ID', 'X_temporal_raw'):
+        f[k].resize((new, *f[k].shape[1:]))
     f['X_events'][cur:new] = X_events
     f['X_demograficos'][cur:new] = X_demo
     f['y'][cur:new] = y
+    f['gidx'][cur:new] = gidx
+    f['ID'][cur:new] = ids
+    f["X_temporal_raw"][cur:new] = X_events[:, Config.TEMPORAL_FILA0:Config.TEMPORAL_FILA0 + 5, :]
     f.flush()
     return n_new
 
 
-def undersampling_v4(input_path: Path, output_path: Path, config: Config, notifier=None) -> Dict:
-    """Undersampling 100:1 deterministico operando sobre HDF5 (sin RAM full)."""
-    print(f"\n{'='*80}\nUndersampling V4\n{'='*80}")
+def split_train_val_test(sel_path: Path, out_dir: Path, sel: Dict, config: Config,
+                            timestamp: str) -> Tuple[Dict[str, Path], Dict]:
+    """Escribe train/val/test leyendo del HDF5 de seleccion en el orden de filas de la
+    seleccion. Antes de escribir, calcula media/desv. de las 5 temporales SOLO en train
+    (eventos reales) y las aplica a los tres splits; el relleno queda en 0."""
+    print(f"\n{'='*80}\nSplit train/val/test (+ z-score temporal con stats de train)\n{'='*80}")
+    with h5py.File(sel_path, 'r') as f:
+        g_sel = f['gidx'][:]
+    if np.any(np.diff(g_sel) <= 0):
+        raise RuntimeError("gidx del HDF5 de seleccion no es estrictamente creciente")
 
-    with h5py.File(input_path, 'r') as f_in:
-        y_all = f_in['y'][:]
-        n_total = len(y_all)
-        idx_c  = np.where(y_all == 1)[0]
-        idx_nc = np.where(y_all == 0)[0]
-        n_c, n_nc = len(idx_c), len(idx_nc)
-        print(f"  Total {n_total:,} | Cancer {n_c:,} | NoCancer {n_nc:,} (ratio {n_nc/max(n_c,1):.1f}:1)")
+    def filas_de(gidx):
+        r = np.searchsorted(g_sel, gidx)
+        if np.any(r >= len(g_sel)) or np.any(g_sel[np.minimum(r, len(g_sel) - 1)] != gidx):
+            raise RuntimeError("hay pacientes elegidos que no estan en el HDF5 de seleccion")
+        return r
 
-        n_keep = n_c * config.UNDERSAMPLING_RATIO
-        if n_keep > n_nc:
-            print(f"  WARNING: no hay suficientes para {config.UNDERSAMPLING_RATIO}:1")
-            n_keep = n_nc
+    # 1. Estadisticos de TRAIN
+    rows_tr = filas_de(sel['train']['gidx'])
+    with h5py.File(sel_path, 'r') as f:
+        T_tr = f['X_temporal_raw'][:][np.sort(rows_tr)]   # lectura contigua y luego indexado
+    st = seleccion.stats_temporales(T_tr, eje_temporal=1)
+    del T_tr
+    print("  Stats temporales (train, eventos reales n=%d):" % st['n_eventos_reales_train'])
+    for nm, m, s in zip(config.TEMPORAL_NOMBRES, st['mean'], st['std']):
+        print(f"    {nm:28s} media {m:12.4f}  desv {s:12.4f}")
 
-        np.random.seed(config.RANDOM_STATE)
-        idx_nc_keep = np.random.choice(idx_nc, size=n_keep, replace=False)
-        idx_final = np.concatenate([idx_c, idx_nc_keep])
-        np.random.shuffle(idx_final)
-        n_final = len(idx_final)
-        print(f"  Pacientes a copiar: {n_final:,}")
-
-        CHUNK = 5000
-        n_chunks = (n_final + CHUNK - 1) // CHUNK
-
-        with h5py.File(output_path, 'w') as f_out:
-            f_out.create_dataset('X_events',
-                shape=(n_final, *f_in['X_events'].shape[1:]),
-                dtype='float32',
-                chunks=(100, *f_in['X_events'].shape[1:]),
-                compression='gzip', compression_opts=4)
-            f_out.create_dataset('X_demograficos',
-                shape=(n_final, f_in['X_demograficos'].shape[1]),
-                dtype='float32',
-                chunks=(1000, f_in['X_demograficos'].shape[1]),
-                compression='gzip', compression_opts=4)
-            f_out.create_dataset('y',
-                shape=(n_final,), dtype='int32',
-                chunks=(1000,), compression='gzip', compression_opts=4)
-
-            for k in range(n_chunks):
-                s = k * CHUNK
-                e = min(s + CHUNK, n_final)
-                idxs = idx_final[s:e]
-                so = np.argsort(idxs)
-                idx_sorted = idxs[so]
-                uso = np.argsort(so)
-
-                ev = f_in['X_events'][idx_sorted][uso]
-                de = f_in['X_demograficos'][idx_sorted][uso]
-                yc = f_in['y'][idx_sorted][uso]
-
-                f_out['X_events'][s:e] = ev
-                f_out['X_demograficos'][s:e] = de
-                f_out['y'][s:e] = yc
-
-                if (k + 1) % 20 == 0:
-                    pct = 100 * e / n_final
-                    print(f"  Chunk {k+1}/{n_chunks}: {e:,}/{n_final:,} ({pct:.1f}%)")
-                    if notifier:
-                        notifier.notify_custom(f"V4 undersampling: {pct:.1f}%", emoji="")
-
-                del ev, de, yc
-                gc.collect()
-
-    with h5py.File(output_path, 'r') as f:
-        yf = f['y'][:]
-    return {
-        'n_total': n_final,
-        'n_cancer': int((yf == 1).sum()),
-        'n_no_cancer': int((yf == 0).sum())
-    }
-
-
-def split_train_val_test_v4(input_path: Path, out_dir: Path, config: Config, timestamp: str) -> Dict[str, Path]:
-    """Stratified split + escritura de 3 HDF5 separados."""
-    print(f"\n{'='*80}\nSplit train/val/test V4\n{'='*80}")
-    with h5py.File(input_path, 'r') as f:
-        y = f['y'][:]
-        n_total = len(y)
-
-    indices = np.arange(n_total)
-    idx_trainval, idx_test = train_test_split(
-        indices, test_size=config.TEST_RATIO, stratify=y, random_state=config.RANDOM_STATE)
-    val_ratio_adj = config.VAL_RATIO / (config.TRAIN_RATIO + config.VAL_RATIO)
-    idx_train, idx_val = train_test_split(
-        idx_trainval, test_size=val_ratio_adj, stratify=y[idx_trainval], random_state=config.RANDOM_STATE)
-
-    splits = {'train': idx_train, 'val': idx_val, 'test': idx_test}
     output_files = {}
-
-    for name, idxs in splits.items():
-        out = out_dir / f"datos_modelo_{name}_v4_{timestamp}.h5"
-        n_split = len(idxs)
+    for name in ('train', 'val', 'test'):
+        rows = filas_de(sel[name]['gidx'])
+        out_final = out_dir / f"datos_modelo_{name}_cnn_{timestamp}.h5"
+        # se escribe como *.h5.partial (no casa con los glob "*_cnn_*.h5") y se
+        # renombra solo cuando el split esta completo y su y verificada
+        out = out_final.with_name(out_final.name + '.partial')
+        n_split = len(rows)
         print(f"  {name}: {n_split:,} pacientes -> {out.name}")
-
-        with h5py.File(input_path, 'r') as f_in, h5py.File(out, 'w') as f_out:
-            f_out.create_dataset('X_events',
-                shape=(n_split, *f_in['X_events'].shape[1:]),
-                dtype='float32',
-                chunks=(100, *f_in['X_events'].shape[1:]),
+        with h5py.File(sel_path, 'r') as f_in, h5py.File(out, 'w') as f_out:
+            f_out.create_dataset('X_events', shape=(n_split, *f_in['X_events'].shape[1:]),
+                dtype='float32', chunks=(min(100, n_split), *f_in['X_events'].shape[1:]),
                 compression='gzip', compression_opts=4)
-            f_out.create_dataset('X_demograficos',
-                shape=(n_split, f_in['X_demograficos'].shape[1]),
-                dtype='float32',
-                chunks=(1000, f_in['X_demograficos'].shape[1]),
+            f_out.create_dataset('X_demograficos', shape=(n_split, f_in['X_demograficos'].shape[1]),
+                dtype='float32', chunks=(min(1000, n_split), f_in['X_demograficos'].shape[1]),
                 compression='gzip', compression_opts=4)
-            f_out.create_dataset('y',
-                shape=(n_split,), dtype='int32',
-                chunks=(1000,), compression='gzip', compression_opts=4)
-
+            f_out.create_dataset('y', shape=(n_split,), dtype='int32',
+                chunks=(min(1000, n_split),), compression='gzip', compression_opts=4)
+            f_out.create_dataset('X_temporal_raw', shape=(n_split, *f_in['X_temporal_raw'].shape[1:]),
+                dtype='float32', chunks=(min(1000, n_split), *f_in['X_temporal_raw'].shape[1:]),
+                compression='gzip', compression_opts=4)
+            f_out.create_dataset('gidx', data=sel[name]['gidx'].astype(np.int64))
+            f_out.create_dataset('ID', data=f_in['ID'][:][rows])
             CHUNK = 5000
-            n_chunks = (n_split + CHUNK - 1) // CHUNK
-            for k in range(n_chunks):
-                s = k * CHUNK
+            for s in range(0, n_split, CHUNK):
                 e = min(s + CHUNK, n_split)
-                idx_slice = idxs[s:e]
-                so = np.argsort(idx_slice)
-                idx_sorted = idx_slice[so]
-                uso = np.argsort(so)
-
-                f_out['X_events'][s:e]       = f_in['X_events'][idx_sorted][uso]
+                idx_slice = rows[s:e]
+                so = np.argsort(idx_slice); idx_sorted = idx_slice[so]; uso = np.argsort(so)
+                X = f_in['X_events'][idx_sorted][uso]
+                T = f_in['X_temporal_raw'][idx_sorted][uso]
+                X = seleccion.escalar_cnn(X, T, st, fila0=config.TEMPORAL_FILA0)
+                f_out['X_events'][s:e] = X
+                f_out['X_temporal_raw'][s:e] = T
                 f_out['X_demograficos'][s:e] = f_in['X_demograficos'][idx_sorted][uso]
-                f_out['y'][s:e]              = f_in['y'][idx_sorted][uso]
-
-        output_files[name] = out
-
-    return output_files
+                f_out['y'][s:e] = f_in['y'][idx_sorted][uso]
+                del X, T
+            # control: y del split == y esperada por la seleccion
+            if not np.array_equal(f_out['y'][:], sel[name]['y']):
+                raise RuntimeError(f"y de {name} no coincide con la seleccion")
+            for k, v in (('temporal_mean', st['mean']), ('temporal_std', st['std'])):
+                f_out.attrs[k] = np.asarray(v, np.float64)
+            f_out.attrs['temporal_nombres'] = json.dumps(config.TEMPORAL_NOMBRES)
+            f_out.attrs['temporal_filas'] = np.arange(config.TEMPORAL_FILA0, config.TEMPORAL_FILA0 + 5)
+            f_out.attrs['politica_relleno'] = 'relleno = 0 exacto (columna toda cero)'
+            f_out.attrs['version'] = 'CNN-2D (1541 x 100), temporales z-score'
+        os.replace(out, out_final)
+        output_files[name] = out_final
+    return output_files, st
 
 
 # ==============================================================================
 # PIPELINE PRINCIPAL
 # ==============================================================================
 
-def main():
-    config = Config()
+def main(output_path=None, smoke: Dict = None, reusar_seleccion: str = None):
+    """Flujo preseleccion. smoke = {'solo_batches': {1}, 'max_chunks': 1,
+    'max_gidx': 60000, 'y_desde_gen': True} para pruebas pequenas."""
+    config = Config(output_path)
+    y_desde_gen = False
+    if smoke:
+        config.SOLO_BATCHES = smoke.get('solo_batches')
+        config.SMOKE_MAX_CHUNKS = smoke.get('max_chunks', 0)
+        config.SMOKE_MAX_GIDX = smoke.get('max_gidx')
+        y_desde_gen = smoke.get('y_desde_gen', False)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(f"\n{'#'*80}\n# PREPARAR HDF5 V4 -- timestamp {timestamp}\n{'#'*80}")
+    print(f"\n{'#'*80}\n# PREPARAR HDF5 -- timestamp {timestamp}\n{'#'*80}")
+    t0 = datetime.now()
 
-    notifier = NotificationManager() if NOTIFICATIONS_AVAILABLE else None
-    if notifier:
-        notifier.notify_custom(f"V4 build START {timestamp}", emoji="")
-
-    # 0. Geolocalizacion + scalers
+    # 0. Geolocalizacion + scalers (todas las filas Gen)
     mapa_geo = cargar_mapa_geolocalizacion(config)
     print(f"Geolocalizacion: {len(mapa_geo)} DIVIPOLA cargados")
     scalers, n_seen, n_miss = fit_scalers_one_pass(config, mapa_geo)
 
+    # Paso 1: y de toda la poblacion y seleccion
+    print(f"\n{'='*80}\nPASO 1: y de la poblacion (merge de IDs por chunks)\n{'='*80}")
+    y_all, ids_all, filas_batch = seleccion.y_poblacion(config.MATRICES_PATH, solo_gen=y_desde_gen)
+    sel = seleccion.seleccionar(y_all, ratio=config.UNDERSAMPLING_RATIO, seed=config.RANDOM_STATE,
+                                   train_ratio=config.TRAIN_RATIO, val_ratio=config.VAL_RATIO,
+                                   test_ratio=config.TEST_RATIO)
+    print(f"  Poblacion {len(y_all):,} | cancer {int(y_all.sum()):,} | elegidos {len(sel['idx_final']):,}")
+    for s in ('train', 'val', 'test'):
+        print(f"  {s}: {len(sel[s]['gidx']):,} (cancer {int(sel[s]['y'].sum())})")
+    sel_npz = config.OUTPUT_PATH / f"seleccion_indices_cnn_{timestamp}.npz"
+    seleccion.guardar_seleccion(sel_npz, sel, ids_all, y_all)
+
+    if config.SMOKE_MAX_GIDX is not None:     # smoke: solo elegidos con gidx pequeno
+        for s in ('train', 'val', 'test'):
+            keep = sel[s]['gidx'] < config.SMOKE_MAX_GIDX
+            for k in ('gidx', 'y', 'pos_balanced'):
+                sel[s][k] = sel[s][k][keep]
+        print(f"  [smoke] gidx < {config.SMOKE_MAX_GIDX}: "
+              + ", ".join(f"{s} {len(sel[s]['gidx'])}" for s in ('train', 'val', 'test')))
+    elegidos = np.sort(np.concatenate([sel[s]['gidx'] for s in ('train', 'val', 'test')]))
+
     # 1. Embeddings BERT
     embeddings = cargar_embeddings_bert(config)
 
-    # 2. Crear HDF5 temporal
-    f_temp, temp_path = crear_hdf5_temporal(config, timestamp)
-    encoders = None
-    total_written = 0
+    # Paso 2: eventos solo para los elegidos
+    # --reusar-seleccion <h5> salta el paso 2 si ya existe un HDF5 de seleccion completo
+    if reusar_seleccion:
+        sel_path = Path(reusar_seleccion)
+        with h5py.File(sel_path, 'r') as fh:
+            g_prev = fh['gidx'][:]
+        if not np.array_equal(np.sort(g_prev), elegidos):
+            raise RuntimeError("el HDF5 de seleccion reutilizado no contiene exactamente los elegidos")
+        ts_prev = sel_path.stem.replace('datos_seleccion_', '')
+        cal_prev = sel_path.parent / f"fechas_calidad_cnn_{ts_prev}.json"
+        calidad = json.load(open(cal_prev, encoding='utf-8')) if cal_prev.exists() else parseo_fechas.nueva_calidad()
+        enc_meta = None
+        print(f"  [reusar] seleccion {sel_path.name} ({len(g_prev):,} pacientes); calidad de {cal_prev.name}")
+        # encoders (solo para la metadata): ajuste con el Gen del batch 1 completo
+        gen1 = sorted(config.MATRICES_PATH.glob("MatChar_Gen_batch_*.csv"))[0]
+        g1 = pd.read_csv(gen1, usecols=['CodigoAdmin', 'Sexo'], low_memory=False)
+        encoders = {'CodigoAdmin': LabelEncoder().fit(g1['CodigoAdmin'].fillna(0)),
+                    'Sexo': LabelEncoder().fit(g1['Sexo'].fillna('U'))}
+        batch_gen, n_batches, batch_ids_pob = [], 0, None
+    else:
+        f_sel, sel_path = crear_hdf5_seleccion(config, timestamp)
+        encoders = None
+        calidad = parseo_fechas.nueva_calidad()
+        # solo las filas elegidas de cada chunk (+ ID/y del batch entero para los controles)
+        batch_gen = carga_filtrada.cargar_batches_filtrados(
+            config.MATRICES_PATH, elegidos, filas_batch, solo_batches=config.SOLO_BATCHES,
+            max_chunks=config.SMOKE_MAX_CHUNKS)
+        n_batches = len(filas_batch)
+    offset = 0
+    for batch_idx, offset, sub_all, ids_full, y_full in batch_gen:
+        n_in_batch = len(ids_full)
+        print(f"\n{'-'*80}\n[Procesando batch {batch_idx}/{n_batches}] {n_in_batch:,} filas "
+              f"(gidx {offset:,}..{offset + n_in_batch - 1:,})\n{'-'*80}")
+        # control de alineacion con el paso 1 (mismos IDs en el mismo orden)
+        if not np.array_equal(np.asarray(ids_full, dtype=ids_all.dtype),
+                              ids_all[offset:offset + n_in_batch]):
+            raise RuntimeError(f"batch {batch_idx}: IDs no alineados con el paso 1")
+        # y de TODO el batch igual a la del paso 1
+        if not np.array_equal(pd.Series(y_full).fillna(0).astype(np.int32).values,
+                              y_all[offset:offset + n_in_batch]):
+            raise RuntimeError(f"batch {batch_idx}: y no coincide con el paso 1")
 
-    # 3. Procesar batches y escribir incremental
-    batch_gen, n_batches = cargar_matrices(config, notifier=notifier)
+        # 3a. Encoders: batch 1 COMPLETO, ajustados con el Gen del batch 1 (mismas filas y valores
+        # que el batch 1 fusionado), porque el batch entero no se retiene en memoria
+        if encoders is None:
+            gen1 = sorted(config.MATRICES_PATH.glob("MatChar_Gen_batch_*.csv"))[0]
+            _, encoders = codificar_demograficos_v4(pd.read_csv(gen1, low_memory=False), config,
+                                                    mapa_geo, scalers, None)
 
-    for batch_idx, batch_df in enumerate(batch_gen, 1):
-        print(f"\n{'-'*80}\n[Procesando batch {batch_idx}/{n_batches}] {len(batch_df):,} filas\n{'-'*80}")
+        loc = elegidos[(elegidos >= offset) & (elegidos < offset + n_in_batch)] - offset
+        print(f"  elegidos en este batch: {len(loc):,}")
+        if len(loc) == 0:
+            del sub_all; gc.collect(); continue
+        if len(sub_all) != len(loc) or not np.array_equal(sub_all['ID'].values, ids_full[loc]):
+            raise RuntimeError(f"batch {batch_idx}: filas filtradas no coinciden con los elegidos")
+        ids_b = ids_full
+        X_demo, _ = codificar_demograficos_v4(sub_all.copy(), config, mapa_geo, scalers, encoders)
+        y = sub_all['Estomago_x'].fillna(0).astype(np.int32).values
+        diag_cols, proc_cols, fecha_cols = _detectar_cols(sub_all)
+        # el emparejamiento evento-fecha es posicional; exigir las mismas columnas
+        kd = [c[:-5] for c in diag_cols]; kp = [c[:-5] for c in proc_cols]
+        if not (kd == kp == fecha_cols):
+            raise RuntimeError(f"columnas diag/proc/fecha desalineadas: {len(kd)}/{len(kp)}/{len(fecha_cols)}")
 
-        # 3a. Demograficos V4 (toda la batch a la vez, es chico: n x 15)
-        X_demo, encoders = codificar_demograficos_v4(batch_df, config, mapa_geo, scalers, encoders)
-
-        # 3b. y
-        y = batch_df['Estomago_x'].fillna(0).astype(np.int32).values
-
-        # 3c. Eventos: procesar en sub-batches de SUB_BATCH_SIZE (RAM controlada)
-        diag_cols, proc_cols, fecha_cols = _detectar_cols(batch_df)
-        n_in_batch = len(batch_df)
-        total_eventos_b = 0
-        diag_hits_b = 0
-        proc_hits_b = 0
-        n_subbatches = (n_in_batch + config.SUB_BATCH_SIZE - 1) // config.SUB_BATCH_SIZE
-        print(f"  Procesando {n_subbatches:,} sub-batches de {config.SUB_BATCH_SIZE:,} pacientes ...")
-
-        for sb_idx, s in enumerate(range(0, n_in_batch, config.SUB_BATCH_SIZE), 1):
-            e = min(s + config.SUB_BATCH_SIZE, n_in_batch)
-            sub_df = batch_df.iloc[s:e]
+        for s in range(0, len(loc), config.SUB_BATCH_SIZE):
+            e = min(s + config.SUB_BATCH_SIZE, len(loc))
             X_events_sub, te, dh, ph = crear_eventos_subbatch(
-                sub_df, diag_cols, proc_cols, fecha_cols, embeddings, config
-            )
-            write_subbatch(f_temp, X_events_sub, X_demo[s:e], y[s:e])
-            total_eventos_b += te; diag_hits_b += dh; proc_hits_b += ph
-            del X_events_sub, sub_df
-
-            if sb_idx % 25 == 0 or sb_idx == n_subbatches:
-                pct = 100 * e / n_in_batch
-                mem_gb = psutil.Process().memory_info().rss / 1024**3
-                print(f"    SubBatch {sb_idx}/{n_subbatches} ({pct:.1f}%) | mem {mem_gb:.1f} GB | "
-                      f"escritos {e:,}/{n_in_batch:,}")
-                if notifier and sb_idx % 100 == 0:
-                    notifier.notify_custom(
-                        f"V4 batch {batch_idx}/{n_batches} sub {sb_idx}/{n_subbatches} "
-                        f"({pct:.1f}%) mem {mem_gb:.1f}GB", emoji=""
-                    )
-
-        if total_eventos_b:
-            print(f"  Cobertura batch {batch_idx}: diag {100*diag_hits_b/total_eventos_b:.1f}% | "
-                  f"proc {100*proc_hits_b/total_eventos_b:.1f}%")
-
-        total_written += n_in_batch
-        print(f"  Total escrito hasta ahora: {total_written:,}")
-        if notifier:
-            notifier.notify_custom(
-                f"V4 build: batch {batch_idx}/{n_batches} OK, total {total_written:,}",
-                emoji=""
-            )
-
-        del batch_df, X_demo, y
+                sub_all.iloc[s:e], diag_cols, proc_cols, fecha_cols, embeddings, config, calidad)
+            write_subbatch(f_sel, X_events_sub, X_demo[s:e], y[s:e],
+                           (loc[s:e] + offset).astype(np.int64),
+                           np.asarray(ids_b[loc[s:e]], dtype=np.int64))
+            del X_events_sub
+        print(f"  escritos {len(loc):,} | calidad acumulada: invalidas {calidad['n_fecha_invalida']:,} "
+              f"de {calidad['n_eventos']:,} eventos")
+        del sub_all, X_demo, y, ids_full, y_full, ids_b
         gc.collect()
+    if not reusar_seleccion:
+        f_sel.close()
 
-    f_temp.close()
-    print(f"\nHDF5 temporal V4 cerrado: {total_written:,} pacientes")
+    # Calidad de fechas
+    cal = parseo_fechas.resumen_calidad(calidad)
+    cal_path = config.OUTPUT_PATH / f"fechas_calidad_cnn_{timestamp}.json"
+    with open(cal_path, 'w', encoding='utf-8') as fh:
+        json.dump(cal, fh, indent=2, default=str)
+    print(f"\nCalidad de fechas -> {cal_path}")
+    for k in ('n_eventos', 'n_fecha_invalida', 'frac_eventos_fecha_invalida', 'n_fecha_formato_solo_dia',
+              'n_eventos_descartados_fecha_nula', 'frac_intervalos_negativos',
+              'frac_pacientes_no_monotonos', 'fecha_min_iso', 'fecha_max_iso'):
+        print(f"  {k}: {cal.get(k)}")
 
-    # 4. Undersampling 100:1
-    bal_path = config.OUTPUT_PATH / f"datos_balanceados_v4_{timestamp}.h5"
-    stats_und = undersampling_v4(temp_path, bal_path, config, notifier=notifier)
+    # fechas no monotonas / invalidas / fuera de rango -> aviso fuerte; revisar antes de entrenar
+    aviso_fechas = {k: calidad[k] for k in ('n_intervalos_negativos', 'n_pacientes_no_monotonos',
+                                             'n_fecha_invalida', 'n_fecha_fuera_rango_2015_07_2016_12')}
+    if any(aviso_fechas.values()):
+        print("\n" + "!" * 80 + "\nAVISO CALIDAD FECHAS: " + json.dumps(aviso_fechas)
+              + "\nRevisar antes de entrenar: reordenar o documentar."
+              + "\n" + "!" * 80, flush=True)
 
-    # 5. Split train/val/test
-    splits = split_train_val_test_v4(bal_path, config.OUTPUT_PATH, config, timestamp)
+    # 5. Split + z-score
+    splits, st = split_train_val_test(sel_path, config.OUTPUT_PATH, sel, config, timestamp)
+    st_path = config.OUTPUT_PATH / f"temporal_scaler_cnn_{timestamp}.json"
+    seleccion.guardar_stats_json(st_path, st, config.TEMPORAL_NOMBRES,
+                                    extra={'version': 'CNN', 'timestamp': timestamp},
+                                    n_train=len(sel['train']['gidx']))
 
-    # 5b. Cleanup del temp (libera ~15 GB en D:)
-    try:
-        if temp_path.exists():
-            size_gb = temp_path.stat().st_size / (1024 ** 3)
-            temp_path.unlink()
-            print(f"  Temp {temp_path.name} eliminado ({size_gb:.1f} GB liberados)")
-        if bal_path.exists():
-            size_gb = bal_path.stat().st_size / (1024 ** 3)
-            bal_path.unlink()
-            print(f"  Balanced {bal_path.name} eliminado ({size_gb:.1f} GB liberados)")
-    except Exception as e:
-        print(f"  WARNING: cleanup parcial fallido: {e}")
+    if not smoke and not reusar_seleccion:
+        try:
+            size_gb = sel_path.stat().st_size / (1024 ** 3)
+            sel_path.unlink()
+            print(f"  Seleccion {sel_path.name} eliminada ({size_gb:.1f} GB)")
+        except Exception as e:
+            print(f"  WARNING: no se pudo borrar la seleccion: {e}")
 
     # 6. Metadata
     metadata = {
         "timestamp": timestamp,
-        "version": "V4",
+        "version": "CNN-2D",
         "config": {
             "embedding_model": "PlanTL-GOB-ES/bsc-bio-ehr-es (768)",
+            "embedding_files": [config.EMB_DIAG_FILE, config.EMB_PROC_FILE],
             "evento_dim": config.EVENTO_DIM,
             "max_eventos": config.MAX_EVENTOS,
             "demograficos_dim": config.DEMOGRAFICOS_DIM,
@@ -932,13 +962,17 @@ def main():
                 "lon_z (StandardScaler, 1)",
                 "edad_z (StandardScaler, 1)"
             ],
+            "temporal_layout": config.TEMPORAL_NOMBRES,
+            "temporal_escalado": "z-score con stats de train (eventos reales); relleno = 0",
             "undersampling_ratio": config.UNDERSAMPLING_RATIO,
             "train_ratio": config.TRAIN_RATIO,
             "val_ratio": config.VAL_RATIO,
             "test_ratio": config.TEST_RATIO,
             "random_state": config.RANDOM_STATE,
             "masking": False,
-            "truncation": "last MAX_EVENTOS (most recent)"
+            "truncation": "last MAX_EVENTOS (most recent)",
+            "flujo": "preseleccion (y poblacion -> seleccion 100:1 -> eventos solo de los elegidos)",
+            "smoke": smoke or None,
         },
         "geocode_source": {
             "url": "https://www.datos.gov.co/Mapas-Nacionales/DIVIPOLA-C-digos-municipios-geolocalizados/vafm-j2df",
@@ -947,37 +981,43 @@ def main():
             "n_filas_municipio_missing": int(n_miss)
         },
         "scalers": serializar_scalers(scalers),
+        "temporal_scaler": st,
+        "fechas_calidad": cal,
+        "aviso_calidad_fechas": aviso_fechas,
+        "build_completo": True,          # este JSON se escribe al final = marca de build completo
+        "reusar_seleccion": reusar_seleccion,
         "encoders": {
             "CodigoAdmin": {"classes": list(encoders['CodigoAdmin'].classes_.astype(str))},
             "Sexo":        {"classes": list(encoders['Sexo'].classes_.astype(str))}
         },
         "archivos": {
-            "temp":   str(temp_path),
-            "balanced": str(bal_path),
+            "seleccion_indices": str(sel_npz),
             "train":  str(splits['train']),
             "val":    str(splits['val']),
-            "test":   str(splits['test'])
+            "test":   str(splits['test']),
+            "temporal_scaler_json": str(st_path),
+            "fechas_calidad_json": str(cal_path),
         },
-        "undersampling_stats": stats_und,
-        "total_written_pre_undersample": total_written
+        "undersampling_stats": {
+            'n_total': int(len(sel['idx_final'])),
+            'n_cancer': int(sel['y_bal'].sum()),
+            'n_no_cancer': int((sel['y_bal'] == 0).sum())
+        },
+        "total_poblacion": int(len(y_all)),
+        "duracion_s": (datetime.now() - t0).total_seconds(),
     }
-
-    meta_path = config.OUTPUT_PATH / f"metadata_v4_{timestamp}.json"
+    meta_path = config.OUTPUT_PATH / f"metadata_cnn_{timestamp}.json"
     with open(meta_path, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2, default=str)
-    print(f"\nMetadata V4: {meta_path}")
-
-    if notifier:
-        notifier.notify_custom(
-            f"V4 build COMPLETADO\n"
-            f"train: {stats_und['n_total']:,} pacientes\n"
-            f"cancer: {stats_und['n_cancer']:,} | nocancer: {stats_und['n_no_cancer']:,}",
-            emoji=""
-        )
-
-    print(f"\n{'#'*80}\n# V4 BUILD COMPLETADO\n{'#'*80}")
+    print(f"\nMetadata: {meta_path}")
+    print(f"\n{'#'*80}\n# BUILD COMPLETADO\n{'#'*80}")
     return metadata
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    _ap = argparse.ArgumentParser()
+    _ap.add_argument('--reusar-seleccion', default=None,
+                     help='HDF5 datos_seleccion_<ts>.h5 ya completo: salta la construccion de eventos')
+    _a = _ap.parse_args()
+    main(reusar_seleccion=_a.reusar_seleccion)

@@ -5,9 +5,9 @@ REPRODUCES IN THE THESIS
     LV-MPC dual-agent baseline column of Table 6.5 (tab:rep_comparison).
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Baseline_LVMPC_DA_Rerun.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
+    unchanged; comments were edited. See CHANGES-FROM-THESIS.md
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
@@ -47,9 +47,7 @@ QUE CAMBIA RESPECTO AL ORIGINAL
     Las figuras del original se omiten: no aportan a esta verificacion y ahorran
     tiempo. Los KPI se calculan con las MISMAS formulas del original.
 
-USO (en cratos, tras entrar por ssh)
-    conda activate BD_Doc
-    cd ~/Code/Replicator
+USO (desde la carpeta del script, con un entorno que tenga casadi)
     nohup python -u Baseline_LVMPC_DA_Rerun.py --exp 19 > logs_base/exp19.log 2>&1 &
 
     --exp N   experimento a correr, 15..19 (por defecto 19, el de la Tabla 3)
@@ -57,7 +55,7 @@ USO (en cratos, tras entrar por ssh)
 
 COSTE ESPERADO
     El exp 14 a Hp=140, Bw=80 tardo 8523 s (~2.4 h). El exp 19 deberia estar en el
-    mismo orden. Sin contencion en cratos, probablemente menos.
+    mismo orden. Sin contencion en el servidor, probablemente menos.
 
 SALIDA
     Baseline_LVMPC_DA/Datos/Baseline_DA_Exp<N>_Hp140_Bw80.npz

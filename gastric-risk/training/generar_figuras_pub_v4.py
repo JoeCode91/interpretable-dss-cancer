@@ -1,20 +1,24 @@
 """
-generar_figuras_pub_v4.py -- Publication-quality NObSP V4 figures for Cap. 4 + Alex presentation.
+generar_figuras_pub_v4.py -- Publication-quality NObSP figures for Chapter 4.
 
 REPRODUCES IN THE THESIS
     Regenerates the publication figures of Chapter 4 from saved results.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, and comments were edited. See CHANGES-FROM-THESIS.md at the
     repository root.
 
 --------------------------------------------------------------------------
 
-Reads existing NObSP results (CSV + NPZ) and generates 6 improved figures.
-Output: nobsp_results_v4/pub_*.{png,pdf}
-
-Date: 2026-05-25 (sesion 34)
+Reads existing NObSP results (CSV + NPZ) of sample B (NOBSP_RUNB_DIR; all cancer
+patients of train (100:1) and test plus as many non-cancer patients of train+test,
+RandomState(42); W2-W4 with 500 multiplicative probes around the sample mean) and
+generates the publication figures: W1 importance bar, W1 continuous curves, W2 event
+bar, W2 temporal heatmap and W3 bucket bar. Figure 3 (comparison with another model)
+is drawn only if compare_demo_v4_vs_prior.csv exists in the results folder.
+Output: <NOBSP_RUNB_DIR>/pub_*.{png,pdf}
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -30,6 +34,12 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import sys as _sys
+from pathlib import Path as _P
+_sys.path.insert(0, str(_P(__file__).resolve().parent))   # r2_calib (misma carpeta)
 
 import csv
 import glob
@@ -45,17 +55,17 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
 # ---- Paths ----
-OUTPUT_DIR = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4")
-V4_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
+OUTPUT_DIR = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
+V4_DATA_DIR = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
 N_SAMPLES = 500
 # Modo R2 (train+test): si NOBSP_R2_DIR esta seteado, lee de ese dir y carga el
 # conjunto de calibracion balanceado en vez de las 500 de test.
-_R2_DIR = os.environ.get('NOBSP_R2_DIR', '').strip()
+_R2_DIR = os.environ.get('NOBSP_R2_DIR', str(OUTPUT_DIR)).strip()   # por defecto la muestra B
 if _R2_DIR:
     OUTPUT_DIR = Path(_R2_DIR)
     print(f"[R2] figuras desde {OUTPUT_DIR}")
 
-# ---- Scalers (from metadata_v4_20260518_165534.json) ----
+# ---- Scalers (los del build: metadata_cnn_<ts>.json, bloque 'scalers') ----
 SCALERS = {
     'lat':  {'mean': 5.6452, 'scale': 2.2558},
     'lon':  {'mean': -74.9218, 'scale': 1.0864},
@@ -161,11 +171,11 @@ def fig2_continuous_curves():
     contributions = data['contributions']
 
     if _R2_DIR:
-        import r2_calib
+        import r2_calib as r2_calib
         _, X_demo, y_labels = r2_calib.load_r2_calib(_R2_DIR, str(V4_DATA_DIR), need_events=False)
         X_demo = X_demo.astype(np.float32); y_labels = y_labels.astype(int)
     else:
-        test_files = sorted(glob.glob(str(V4_DATA_DIR / "datos_modelo_test_v4_*.h5")))
+        test_files = sorted(glob.glob(str(V4_DATA_DIR / "datos_modelo_test_cnn_*.h5")))
         if not test_files:
             print("  [2] SKIP -- HDF5 test file not found")
             return
@@ -198,7 +208,7 @@ def fig2_continuous_curves():
                    color='#ca0020', marker='x', linewidths=1.2,
                    label='Cancer', zorder=3)
 
-        w = max(len(x_s) // 8, 30)
+        w = min(max(len(x_s) // 8, 30), len(x_s))   # ventana de suavizado, acotada a n para muestras pequenas
         c_sm = np.convolve(c_s, np.ones(w) / w, mode='valid')
         x_sm = x_s[(w - 1) // 2:(w - 1) // 2 + len(c_sm)]
         ax.plot(x_sm, c_sm, color='black', linewidth=2.2, zorder=4, label='Trend')
@@ -223,6 +233,10 @@ def fig2_continuous_curves():
 # Figure 3: Comparison BiLSTM-Attention vs CNN-2D
 # ==================================================================
 def fig3_comparison():
+    # Solo si existe la comparativa de W1 con otro modelo (la escribe aplicar_nobsp_v4.main)
+    if not (OUTPUT_DIR / "compare_demo_v4_vs_prior.csv").exists():
+        print("  [3] OMITIDA: no hay compare_demo_v4_vs_prior.csv")
+        return
     rows = []
     with open(OUTPUT_DIR / "compare_demo_v4_vs_prior.csv") as f:
         for row in csv.DictReader(f):
@@ -379,9 +393,10 @@ def fig6_bucket_bar():
 
     labels = []
     for i, f in enumerate(temporal_features):
-        e_start = i * events_per_bucket
-        e_end = min((i + 1) * events_per_bucket - 1, 99)
-        labels.append(f"{f}  (e{e_start:03d}--e{e_end:03d})")
+        # campo receptivo de conv4: [8i-15, 8i+22] recortado a 0-99 (se solapan)
+        e_start = max(0, 8 * i - 15)
+        e_end = min(99, 8 * i + 22)
+        labels.append(f"{f}  (RF e{e_start:03d}--e{e_end:03d})")
 
     cmap = plt.cm.YlOrRd
     colors = [cmap(0.15 + 0.75 * i / (n_buckets - 1)) for i in range(n_buckets)]
@@ -410,7 +425,7 @@ def fig6_bucket_bar():
 
 # ==================================================================
 if __name__ == "__main__":
-    print("Generating publication-quality NObSP V4 figures...")
+    print("Generating publication-quality NObSP figures...")
     print(f"Output: {OUTPUT_DIR}\n")
     fig1_demo_bar()
     fig2_continuous_curves()

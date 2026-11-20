@@ -6,9 +6,9 @@ REPRODUCES IN THE THESIS
     Table tab:rep_bw_sweep.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Sensitivity_DA_SS20_BwSweep.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
+    unchanged; comments were edited. See CHANGES-FROM-THESIS.md
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
@@ -18,7 +18,6 @@ Paper PLoS ONE tab:Exp_Art2_P2, SS20:
 
 Uses build_da_solver_V2_full (active-set + blocking + smoothness).
 
-Runs on: PC local (casa)
 Usage: python Sensitivity_DA_SS20_BwSweep.py [--test]
 Output: Sensitivity_DA_SS20_BwSweep/{Datos,Imagenes}/
 

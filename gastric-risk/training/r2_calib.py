@@ -1,16 +1,21 @@
 """
-Helper compartido R2: carga el conjunto de calibracion train+test exacto
+Helper compartido: carga el conjunto de calibracion train+test exacto
 
 REPRODUCES IN THE THESIS
-    Calibration diagnostics on the held-out partition.
+    Nothing directly. Loads, in the exact row order of calib_index.npz, the sample on
+    which NObSP is computed (sample B), so that the scripts derived from it run on the
+    same patients. Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; comments were edited. See CHANGES-FROM-THESIS.md at the
     repository root.
 
 --------------------------------------------------------------------------
-(guardado por aplicar_nobsp_v4_r2.py) para que R1/R3/R4 se re-corran alineados.
+(guardado por aplicar_nobsp_v4_r2.py). Muestra B: todos los cancer de train (100:1) y
+test, y el mismo numero de no cancer de train+test (RandomState(42)). Las rutas exactas
+de los splits se leen de muestra.json (split_codes); el glob del mas reciente solo se
+usa si falta ese fichero.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -34,8 +39,8 @@ import h5py
 
 
 def _split_files(v4_data_dir):
-    tr = sorted(glob.glob(str(Path(v4_data_dir) / "datos_modelo_train_v4_*.h5")))[-1]
-    te = sorted(glob.glob(str(Path(v4_data_dir) / "datos_modelo_test_v4_*.h5")))[-1]
+    tr = sorted(glob.glob(str(Path(v4_data_dir) / "datos_modelo_train_cnn_*.h5")))[-1]
+    te = sorted(glob.glob(str(Path(v4_data_dir) / "datos_modelo_test_cnn_*.h5")))[-1]
     return tr, te
 
 
@@ -43,7 +48,15 @@ def load_r2_calib(r2_dir, v4_data_dir, need_events=True):
     """Devuelve (X_events|None, X_demo, y) en el orden exacto de calib_index.npz."""
     d = np.load(Path(r2_dir) / "calib_index.npz")
     idx, y = d['index'], d['y'].astype(int)
-    paths = dict(zip((0, 1), _split_files(v4_data_dir)))
+    # rutas exactas de la muestra B (muestra.json -> split_codes); glob solo si falta
+    import json as _json
+    mj = Path(r2_dir) / "muestra.json"
+    if mj.exists():
+        sc = _json.load(open(mj, encoding='utf-8'))['split_codes']
+        paths = {0: sc['0'], 1: sc['1']}
+    else:
+        print("  AVISO r2_calib: sin muestra.json; se usa el glob (el mas reciente)")
+        paths = dict(zip((0, 1), _split_files(v4_data_dir)))
     N = len(idx)
     X_events = np.zeros((N, 1541, 100), np.float32) if need_events else None
     X_demo = np.zeros((N, 15), np.float32)

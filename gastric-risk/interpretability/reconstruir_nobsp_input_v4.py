@@ -1,32 +1,36 @@
 """
-R4 -- Reconstruccion NObSP al espacio de entrada (solicitud S4 de Alex, 26 May).
+R4 -- NObSP reconstruction into the input space (NObSP-CAM of W4).
 
 REPRODUCES IN THE THESIS
     Input-space reconstruction of the W4 attributions via NObSP-CAM, Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
 Toma las contribuciones por canal de W4 (post-pool, 64 canales del ultimo bloque
 conv) calculadas por aplicar_nobsp_v4.py y las proyecta de vuelta sobre el
 feature-map espacial (64, H', W'), produciendo un NObSP-CAM que se sube por
-interpolacion bilineal al tamano de la matriz de entrada (1541 x 100). Esto
-responde literalmente a S4: "te manda la informacion al mismo tamano de la matriz
-de entrada... haces overlap e identificas que zonas de la matriz de entrada te
-estan dando esa decision."
+interpolacion bilineal al tamano de la matriz de entrada (1541 x 100), de modo
+que se puede superponer a la matriz de entrada e identificar que zonas de ella
+sostienen la decision.
 
-Reusa los mismos 500 primeros pacientes del test V4 que uso aplicar_nobsp_v4.py,
-en el mismo orden, por lo que las contribuciones W4 (500, 64, 2) ya alineadas.
+Usa los pacientes de la muestra B en el orden de calib_index.npz (r2_calib), el
+mismo con el que aplicar_nobsp_v4_r2.py calculo W4. Muestra B: todos los cancer
+de train (100:1) y test, y el mismo numero de no cancer de train+test
+(RandomState(42)); W2-W4 con 500 sondas multiplicativas alrededor de la media de
+esa muestra. El checkpoint se fija con CNN2D_TS (training/checkpoint_utils.py).
 
-Salidas en nobsp_results_v4/:
+Salidas en NOBSP_RUNB_DIR (por defecto ./batches/Resultados/nobsp_runB_traintest):
   - recon_input_cam_mean_cancer.{png,pdf}     CAM medio sobre pacientes cancer
   - recon_input_cam_diff.{png,pdf}            (cancer - no_cancer) discriminante
   - recon_input_cam_ej{1,2}.{png,pdf}         ejemplos individuales cancer
-  - recon_input_cam.npz                        CAMs crudos (192x12) + upsample medios
+  - recon_input_temporal_profile.{png,pdf}    perfil temporal frente a ocupacion
+  - recon_input_cam.npz                        CAMs crudos + upsample medios
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -42,6 +46,17 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+
+import sys as _sys
+from pathlib import Path as _P
+# Modulos hermanos del repositorio
+_HERE = _P(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "models", _HERE.parent / "training"):
+    _sys.path.insert(0, str(_d))
+
 
 import glob
 import json
@@ -59,9 +74,9 @@ import matplotlib.pyplot as plt
 from modelo_cnn2d_v4_pytorch import CNN2DModelV4
 
 # ---- Constantes alineadas con aplicar_nobsp_v4.py ----
-MODEL_DIR  = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
-V4_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
-OUTPUT_DIR = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4")
+MODEL_DIR  = Path("./batches/Modelos_CNN2D_PyTorch")
+V4_DATA_DIR = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
+OUTPUT_DIR = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 N_SAMPLES = 500
 N_EVENTS  = 100
@@ -105,13 +120,6 @@ def plot_cam(cam_input, title, path, cmap='jet'):
     fig, ax = plt.subplots(figsize=(7, 9))
     im = ax.imshow(cam_input, aspect='auto', cmap=cmap, origin='lower',
                    extent=[1, N_EVENTS, 1, N_FEATURES])
-    # Marcar zona caliente W2 (columnas 40-76 del eje de eventos)
-    ax.axvspan(HOT_ZONE[0], HOT_ZONE[1], color='white', alpha=0.0)
-    ax.axvline(HOT_ZONE[0], color='w', ls='--', lw=1.2)
-    ax.axvline(HOT_ZONE[1], color='w', ls='--', lw=1.2)
-    ax.text((HOT_ZONE[0] + HOT_ZONE[1]) / 2, N_FEATURES * 0.97,
-            'zona caliente W2\n(e040-e076)', color='w', ha='center', va='top',
-            fontsize=11, fontweight='bold')
     ax.set_xlabel('Posicion de evento (0=mas antiguo conservado; padding a la derecha)', fontsize=12)
     ax.set_ylabel('Dimension de codigo de evento (1..1541)', fontsize=12)
     ax.set_title(title, fontsize=13, fontweight='bold')
@@ -127,16 +135,17 @@ def plot_cam(cam_input, title, path, cmap='jet'):
 def main():
     print(f"Device: {DEVICE}", flush=True)
     global OUTPUT_DIR
-    model_pt = latest(MODEL_DIR / "*best*.pt")
-    R2_DIR = os.environ.get('NOBSP_R2_DIR', '').strip()
+    import checkpoint_utils as ck                           # checkpoint fijado por CNN2D_TS
+    model_pt = ck.cnn_pt()
+    R2_DIR = os.environ.get('NOBSP_R2_DIR', str(OUTPUT_DIR)).strip()   # por defecto, la muestra B
     if R2_DIR:
-        import r2_calib
+        import r2_calib as r2_calib
         OUTPUT_DIR = Path(R2_DIR)
         X_events, _, y_all = r2_calib.load_r2_calib(R2_DIR, str(V4_DATA_DIR), need_events=True)
         X_events = X_events.astype(np.float32); y_all = y_all.astype(np.int64)
         print(f"[R2 train+test] n={len(y_all)} -> salida {OUTPUT_DIR}", flush=True)
     else:
-        test_pt = latest(V4_DATA_DIR / "datos_modelo_test_v4_*.h5")
+        test_pt = latest(V4_DATA_DIR / "datos_modelo_test_cnn_*.h5")
         with h5py.File(test_pt, 'r') as f:
             X_events = f['X_events'][:N_SAMPLES].astype(np.float32)   # (500,1541,100)
             y_all    = f['y'][:N_SAMPLES].astype(np.int64)            # (500,)
@@ -207,7 +216,7 @@ def main():
     # 7b. Perfil temporal + ocupacion real por clase (HONESTO: revela el confound
     #     de longitud de historia / padding). Eventos van cronologicos a la
     #     izquierda (pos 0 = mas antiguo conservado) y padding a la DERECHA
-    #     (Preparar_HDF5_V4.py L370-371), por lo que la frontera dato/padding ~
+    #     (Preparar_HDF5_V4.py), por lo que la frontera dato/padding ~
     #     longitud de historia del paciente.
     prof_cancer = upsample_to_input(cam_mean_cancer).sum(axis=0)   # (100,)
     prof_nocanc = upsample_to_input(cam_mean_nocanc).sum(axis=0)   # (100,)
@@ -256,19 +265,13 @@ def main():
         OUTPUT_DIR / "recon_input_cam.npz",
         cam_mean_cancer=cam_mean_cancer, cam_mean_nocanc=cam_mean_nocanc,
         cam_diff=cam_diff, up_cancer=up_cancer, up_diff=up_diff,
-        hot_zone=np.array(HOT_ZONE), feat_shape=np.array([C, Hp, Wp]),
+        feat_shape=np.array([C, Hp, Wp]), checkpoint=str(model_pt), checkpoint_sha256=ck.sha256(model_pt),
         n_cancer=n_pos, cancer_class_idx=c_idx,
         prof_cancer=prof_cancer, prof_nocanc=prof_nocanc,
     )
     print(f"\nOK. CAM crudos en {OUTPUT_DIR / 'recon_input_cam.npz'}", flush=True)
 
-    # Resumen cuantitativo de la zona caliente para la redaccion
-    col_lo, col_hi = HOT_ZONE
-    mass_hot = up_cancer[:, col_lo:col_hi].sum()
-    mass_tot = up_cancer.sum()
-    print(f"Fraccion de masa CAM en zona caliente (cols {col_lo}-{col_hi}): "
-          f"{100*mass_hot/mass_tot:.1f}% (ancho zona = {100*(col_hi-col_lo)/N_EVENTS:.0f}% del eje)",
-          flush=True)
+    ck.escribir_registro(OUTPUT_DIR, "reconstruir_nobsp_input_v4", ck.registro(model_pt))
 
 
 if __name__ == "__main__":

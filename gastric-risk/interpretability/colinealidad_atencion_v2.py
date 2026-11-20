@@ -1,66 +1,64 @@
 """
-Colinealidad de las representaciones atendidas -- VERSION 2.
+Colinealidad de las representaciones atendidas: BiLSTM-Attention frente a CNN-2D.
 
 REPRODUCES IN THE THESIS
     Collinearity of the attention representation, paired control. Section 4.3.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
-QUE CAMBIA RESPECTO A colinealidad_atencion.py (v1, corrida del 26 Ago)
------------------------------------------------------------------------
-La v1 dejo el control interno del BiLSTM bien medido, pero el bloque de la
-CNN estaba contaminado y la comparacion entre arquitecturas no era
-interpretable. Tres correcciones:
+Mide cuan colineales son las representaciones por posicion temporal de los dos
+modelos, paciente a paciente: similitud coseno media entre pares de posiciones,
+angulo, numero de condicion y rango efectivo (normalizado por n).
 
-  (1) LA CNN NO ENMASCARABA EL RELLENO. El tensor de la CNN es fijo,
-      1541 x 100, con los eventos empaquetados a la izquierda y ceros a la
-      derecha. Sus 12 columnas tienen paso 8 y campo receptivo 22, luego la
-      columna j cubre los eventos [8j, 8j+22). Con una mediana de ~22 eventos
-      reales, solo las columnas 0 a 2 tienen contenido; las otras nueve son
-      relleno. Y el relleno tras convolucion, normalizacion y ReLU NO es cero:
-      los sesgos producen activaciones constantes, de modo que esas columnas
-      son casi identicas entre si e inflan la colinealidad de forma artificial.
-      Eso explica el eff_rank_frac de 0,222 de la v1.
-      AHORA: se calcula la ocupacion real por paciente y se descartan las
-      columnas cuyo campo receptivo no toca ningun evento real.
+  Bloque A, control interno del BiLSTM: salida del BiLSTM por ventana antes y
+  despues del bloque de atencion. Mismo modelo, mismos pacientes, misma dimension
+  (512) y mismo n en ambas ramas; solo ventanas validas (mascara).
 
-  (2) EL NUMERO DE POSICIONES NO ERA COMPARABLE. El BiLSTM aporta una mediana
-      de 3 ventanas validas y la CNN aportaba siempre 12. El rango efectivo va
-      normalizado por n, asi que compararlos no significaba nada.
-      AHORA: ademas del bloque enmascarado se calcula un bloque de la CNN
-      SUBMUESTREADO al mismo numero de posiciones que la mediana del BiLSTM,
-      y para la comparacion entre arquitecturas se reporta SOLO la similitud
-      coseno, que es la metrica robusta a la dimension.
+  Bloque B, CNN-2D: columnas temporales del mapa pre-pooling. El tensor de la CNN
+  es fijo, 1541 x 100, con los eventos empaquetados a la izquierda y ceros a la
+  derecha, y el relleno tras convolucion, normalizacion y ReLU NO es cero (los
+  sesgos producen activaciones constantes), de modo que las columnas de relleno son
+  casi identicas entre si e inflarian la colinealidad. Por eso se calcula la
+  ocupacion real por paciente y se descartan las columnas cuyo campo receptivo no
+  toca ningun evento real. Campo receptivo de la columna c de conv4: [8c-15, 8c+22]
+  recortado a 0-99 (paso 8, campo 38). Como sensibilidad se informa tambien el
+  criterio aproximado [8c, 8c+22) y el bloque sin enmascarar.
 
-  (3) NO SE GUARDABA LA ETIQUETA. La v1 informaba los positivos del lote
-      cargado, no los de los pacientes que sobrevivian al filtro, lo que se
-      presto a confusion al redactar.
-      AHORA: se guarda y y se informa cuantos positivos hay en cada bloque.
+  Comparacion entre arquitecturas: el rango efectivo va normalizado por n y el
+  BiLSTM aporta una mediana de pocas ventanas validas, asi que se calcula un bloque
+  de la CNN SUBMUESTREADO al mismo numero de posiciones que la mediana del BiLSTM,
+  y para comparar se usa SOLO la similitud coseno, que es robusta a la dimension.
 
-ADEMAS se reporta la DISTRIBUCION DE OCUPACION de la representacion ventaneada
-(cuantos pacientes tienen k ventanas validas), que es evidencia directa para la
-seccion del confusor de longitud de historia.
+Se guarda la etiqueta y se informa cuantos positivos hay en cada bloque, y la
+DISTRIBUCION DE OCUPACION de la representacion ventaneada (cuantos pacientes tienen
+k ventanas validas), evidencia para la seccion del confusor de longitud de historia.
 
-El control interno del BiLSTM es identico a la v1 y debe reproducir sus cifras:
-coseno 0,725 -> 0,970; angulo 42,75 -> 12,27 grados; rango efectivo 0,831 ->
-0,542. Sirve de comprobacion de que la v2 no rompio nada.
+MUESTRA
+-------
+Muestra B (calib_index.npz en NOBSP_RUNB_DIR): todos los cancer de train (100:1) y
+test, y el mismo numero de no cancer de train+test (RandomState(42)), la misma para
+los dos modelos y en el mismo orden; se exige que los IDs coincidan. --n por defecto
+toma toda la muestra. Los checkpoints se fijan con CNN2D_TS y BILSTM_TS
+(training/checkpoint_utils.py) y su SHA-256 queda en el JSON.
+
+El bloque A necesita el modelo BiLSTM-Attention (BiLSTMAttentionModelV3, del modulo
+Modelo_Predictivo_V3_PyTorch) y sus HDF5 ventaneados (X_ventanas, X_mascaras), que
+no forman parte de este repositorio.
 
 SALIDAS
 -------
-`XAI_Model/colinealidad_results_v2/`. No sobrescribe las de la v1.
+COLLINEARITY_DIR (por defecto ./batches/Resultados/colinealidad_runB):
+resumen_colinealidad.json, por_paciente_*.csv, colinealidad_v2.{png,pdf}.
 
 USO
 ---
-    cd /d "G:\\Mi unidad\\Doctorado\\Proyecto_CC\\Test\\Book\\XAI_Model"
-    D:\\venv_torch_cu121\\Scripts\\python.exe colinealidad_atencion_v2.py
-
-Autor: Johan Pena-Campos. Cap. 4, articulo AIM.
-Fecha: 2026-08-27
+    python colinealidad_atencion_v2.py [--n N] [--skip-cnn]
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -76,9 +74,14 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+
 import argparse
 import collections
 import json
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -88,35 +91,41 @@ import numpy as np
 import h5py
 import torch
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Modulos hermanos del repositorio
+_HERE = Path(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "models", _HERE.parent / "training"):
+    sys.path.insert(0, str(_d))
 
 # ==================== CONFIGURACION ====================
 
-BILSTM_PT = Path(r"D:\Proyecto_CC_Batches\Modelos_V32_PyTorch"
-                 r"\modelo_v32_pytorch_20260510_151626_best.pt")
-BILSTM_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo")
-BILSTM_DATA_GLOB = "datos_modelo_test_*.h5"
+BILSTM_MODEL_DIR = Path("./batches/Modelos_BiLSTM_PyTorch")
+BILSTM_MODEL_GLOB = "modelo_bilstm_pytorch_*_best.pt"
+BILSTM_DATA_DIR = Path("./batches/Datos_Modelo_BiLSTM")
+BILSTM_DATA_GLOB = "datos_modelo_{split}_bilstm_*.h5"
 
-CNN_MODEL_DIR = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
-CNN_MODEL_GLOB = "modelo_cnn2d_v4_pytorch_*_best.pt"
-CNN_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
-CNN_DATA_GLOB = "datos_modelo_test_v4_*.h5"
+CNN_MODEL_DIR = Path("./batches/Modelos_CNN2D_PyTorch")
+CNN_MODEL_GLOB = "modelo_cnn2d_pytorch_*_best.pt"
+CNN_DATA_DIR = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
+CNN_DATA_GLOB = "datos_modelo_{split}_cnn_*.h5"
 
-OUTPUT_DIR = Path(__file__).parent / "colinealidad_results_v2"
+CALIB_B = Path(os.path.join(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"), 'calib_index.npz'))
+OUTPUT_DIR = Path(os.environ.get('COLLINEARITY_DIR', "./batches/Resultados/colinealidad_runB"))
 
-N_SAMPLES_DEFAULT = 500
+N_SAMPLES_DEFAULT = 100000          # toda la muestra B (1.734)
 BATCH = 32
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Geometria del backbone convolucional, de la tabla de campo receptivo:
 # cada columna del mapa pre-pooling avanza 8 eventos e integra 22.
 CNN_STRIDE = 8
-CNN_RECEPTIVE = 22
+CNN_RECEPTIVE = 22          # criterio aproximado [8c, 8c+22): solo como sensibilidad
+# Campo receptivo real de conv4: [8c-15, 8c+22] recortado a 0-99
+CNN_RF_LO, CNN_RF_HI = -15, 22
 
 SEED = 20260827
 
 
-# ==================== METRICAS (identicas a la v1) ====================
+# ==================== METRICAS ====================
 
 def metricas_colinealidad(V):
     if V.shape[0] < 2:
@@ -187,18 +196,47 @@ def _resolver(dirpath, patron, etiqueta):
     return cands[-1]
 
 
+# ============ Carga de la muestra B en el orden de calib_index ============
+
+def cargar_muestra_b(archivos, claves, n_max):   # archivos = ck.datos_*() del modelo fijado
+    """Devuelve {clave: array} y y para las filas (split, fila) de calib_index.npz,
+    en ese orden. split 0 = train 100:1, 1 = test (igual que en aplicar_nobsp_v4_r2.py)."""
+    d = np.load(CALIB_B)
+    idx, y_cal = d['index'][:n_max], d['y'][:n_max].astype(int)
+    out = {k: None for k in claves}
+    ids = np.zeros(len(idx), dtype=np.int64)
+    y = np.zeros(len(idx), dtype=int)
+    for sc, split in ((0, 'train'), (1, 'test')):
+        f = archivos[split]
+        pos = np.where(idx[:, 0] == sc)[0]
+        if len(pos) == 0:
+            continue
+        rows = idx[pos, 1]
+        o = np.argsort(rows)
+        with h5py.File(f, 'r') as h:
+            for k in claves:
+                a = h[k][rows[o]].astype(np.float32)
+                if out[k] is None:
+                    out[k] = np.zeros((len(idx), *a.shape[1:]), np.float32)
+                out[k][pos[o]] = a
+            y[pos[o]] = h['y'][rows[o]]
+            if 'ID' in h:
+                ids[pos[o]] = h['ID'][rows[o]]
+    if not np.array_equal(y, y_cal):
+        raise RuntimeError("y de los HDF5 no coincide con calib_index.npz")
+    return out, y, ids
+
+
 # ============ BLOQUE A: BiLSTM antes y despues de la atencion ============
 
 def analizar_bilstm(n_samples):
     from Modelo_Predictivo_V3_PyTorch import BiLSTMAttentionModelV3
 
-    data_pt = _resolver(BILSTM_DATA_DIR, BILSTM_DATA_GLOB, "datos test del BiLSTM")
-    print("  datos  : %s" % data_pt.name, flush=True)
-
-    with h5py.File(data_pt, 'r') as f:
-        X_vent = f['X_ventanas'][:n_samples].astype(np.float32)
-        X_mask = f['X_mascaras'][:n_samples].astype(np.float32)
-        y_all = np.asarray(f['y'][:n_samples]).ravel()
+    # Muestra B (train+test) en el orden de calib_index
+    import checkpoint_utils as ck
+    datos, y_all, ids_b = cargar_muestra_b(ck.datos_bilstm(), ['X_ventanas', 'X_mascaras'], n_samples)
+    X_vent, X_mask = datos['X_ventanas'], datos['X_mascaras']
+    print("  datos  : muestra B, %d pacientes" % len(y_all), flush=True)
     n, n_win, seq_len, n_feat = X_vent.shape
     print("  n=%d ventanas=%d seq=%d feat=%d  positivos en el lote=%d"
           % (n, n_win, seq_len, n_feat, int(y_all.sum())), flush=True)
@@ -223,7 +261,9 @@ def analizar_bilstm(n_samples):
              100 * ocupacion['frac_con_1_o_menos']), flush=True)
 
     model = BiLSTMAttentionModelV3(n_features=n_feat).to(DEVICE)
-    model.load_state_dict(torch.load(BILSTM_PT, map_location=DEVICE, weights_only=True))
+    bilstm_pt = ck.bilstm_pt()          # fijado por BILSTM_TS
+    print("  modelo : %s" % bilstm_pt.name, flush=True)
+    model.load_state_dict(torch.load(bilstm_pt, map_location=DEVICE, weights_only=True))
     model.eval()
 
     filas_pre, filas_post = [], []
@@ -256,21 +296,20 @@ def analizar_bilstm(n_samples):
                         r['y'] = int(y_all[i0 + j])
                     filas_pre.append(r_pre)
                     filas_post.append(r_post)
-    return filas_pre, filas_post, ocupacion
+    return filas_pre, filas_post, ocupacion, ids_b, bilstm_pt
 
 
-# ============ BLOQUE B: CNN-2D, ahora enmascarada ============
+# ============ BLOQUE B: CNN-2D, enmascarada ============
 
 def analizar_cnn(n_samples, n_match):
     from modelo_cnn2d_v4_pytorch import CNN2DModelV4
 
-    model_pt = _resolver(CNN_MODEL_DIR, CNN_MODEL_GLOB, "modelo CNN-2D")
-    data_pt = _resolver(CNN_DATA_DIR, CNN_DATA_GLOB, "datos test V4")
-    print("  datos  : %s" % data_pt.name, flush=True)
-
-    with h5py.File(data_pt, 'r') as f:
-        X_events = f['X_events'][:n_samples].astype(np.float32)
-        y_all = np.asarray(f['y'][:n_samples]).ravel()
+    import checkpoint_utils as ck
+    model_pt = ck.cnn_pt()              # fijado por CNN2D_TS
+    # Muestra B (train+test) en el orden de calib_index
+    datos, y_all, ids_c = cargar_muestra_b(ck.datos_cnn(), ['X_events'], n_samples)
+    X_events = datos['X_events']
+    print("  datos  : muestra B, %d pacientes" % len(y_all), flush=True)
     n = X_events.shape[0]
 
     # Ocupacion real: una posicion de evento cuenta si su vector no es todo cero.
@@ -285,6 +324,7 @@ def analizar_cnn(n_samples, n_match):
 
     rng = np.random.default_rng(SEED)
     filas_todas, filas_mask, filas_match = [], [], []
+    filas_mask_v2 = []                  # criterio aproximado [8c, 8c+22), sensibilidad
     n_cols = None
     with torch.no_grad():
         for i0 in range(0, n, BATCH):
@@ -294,7 +334,7 @@ def analizar_cnn(n_samples, n_match):
             n_cols = cols.shape[1]
             for j in range(cols.shape[0]):
                 gi = i0 + j
-                # (a) sin enmascarar, para reproducir la v1 y poder contrastar
+                # (a) sin enmascarar, para contrastar
                 r = metricas_colinealidad(cols[j])
                 if r:
                     r['idx'] = gi; r['y'] = int(y_all[gi])
@@ -302,7 +342,14 @@ def analizar_cnn(n_samples, n_match):
                 # (b) enmascarada: la columna c es real si su campo receptivo
                 #     toca algun evento real del paciente
                 ev = n_ev[gi]
-                valid = np.array([(CNN_STRIDE * c) < ev for c in range(n_cols)])
+                # campo receptivo real [8c-15, 8c+22]: toca un evento real si 8c-15 < ev
+                valid = np.array([(CNN_STRIDE * c + CNN_RF_LO) < ev for c in range(n_cols)])
+                valid_v2 = np.array([(CNN_STRIDE * c) < ev for c in range(n_cols)])
+                if valid_v2.sum() >= 2:
+                    r2_ = metricas_colinealidad(cols[j][valid_v2])
+                    if r2_:
+                        r2_['idx'] = gi; r2_['y'] = int(y_all[gi]); r2_['n_eventos'] = int(ev)
+                        filas_mask_v2.append(r2_)
                 if valid.sum() >= 2:
                     rm = metricas_colinealidad(cols[j][valid])
                     if rm:
@@ -316,7 +363,7 @@ def analizar_cnn(n_samples, n_match):
                         if rr:
                             rr['idx'] = gi; rr['y'] = int(y_all[gi])
                             filas_match.append(rr)
-    return filas_todas, filas_mask, filas_match, int(n_cols or 0)
+    return filas_todas, filas_mask, filas_match, int(n_cols or 0), filas_mask_v2, ids_c, model_pt
 
 
 
@@ -379,26 +426,33 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     t0 = datetime.now()
     print("=" * 74)
-    print("COLINEALIDAD DE LAS REPRESENTACIONES ATENDIDAS -- v2")
+    print("COLINEALIDAD DE LAS REPRESENTACIONES ATENDIDAS")
     print("inicio: %s   device: %s   n=%d"
           % (t0.strftime('%Y-%m-%d %H:%M:%S'), DEVICE, args.n))
     print("=" * 74)
 
     print("\n[1/3] BiLSTM-Attention: antes y despues de la atencion", flush=True)
-    filas_pre, filas_post, ocupacion = analizar_bilstm(args.n)
+    filas_pre, filas_post, ocupacion, ids_b, bilstm_pt = analizar_bilstm(args.n)
     print("  pacientes con al menos 2 ventanas validas: %d de %d"
-          % (len(filas_pre), args.n), flush=True)
+          % (len(filas_pre), ocupacion['n_cargados']), flush=True)
     n_match = int(round(np.median([f['n_pos'] for f in filas_pre]))) if filas_pre else 3
     print("  n de posiciones para igualar la CNN: %d" % n_match, flush=True)
 
-    todas = maskd = match = []
+    todas = maskd = match = maskd_v2 = []
     n_cols = 0
+    ids_c, cnn_pt = None, None
     if not args.skip_cnn:
         print("\n[2/3] CNN-2D: columnas temporales pre-pooling", flush=True)
         try:
-            todas, maskd, match, n_cols = analizar_cnn(args.n, n_match)
+            todas, maskd, match, n_cols, maskd_v2, ids_c, cnn_pt = analizar_cnn(args.n, n_match)
+            # Los dos modelos deben ver los mismos pacientes en el mismo orden
+            if not np.array_equal(ids_b, ids_c):
+                raise RuntimeError("IDs de la muestra B distintos entre BiLSTM y CNN")
+            print("  IDs BiLSTM == IDs CNN en la muestra B: OK", flush=True)
             print("  sin enmascarar: %d   enmascarada: %d   igualada a n=%d: %d"
                   % (len(todas), len(maskd), n_match, len(match)), flush=True)
+        except RuntimeError:
+            raise
         except Exception as e:
             print("  AVISO: bloque CNN omitido (%s)" % e, flush=True)
 
@@ -409,6 +463,11 @@ def main():
         'n_solicitado': args.n,
         'device': str(DEVICE),
         'ocupacion_representacion_ventaneada': ocupacion,
+        # Muestra y modelos usados
+        'muestra': 'B', 'calib_index': str(CALIB_B), 'n_ids': int(len(ids_b)),
+        'ids_iguales_bilstm_cnn': bool(ids_c is not None and np.array_equal(ids_b, ids_c)),
+        'modelo_bilstm': __import__('checkpoint_utils').registro(bilstm_pt),
+        'modelo_cnn': __import__('checkpoint_utils').registro(cnn_pt) if cnn_pt else None,
         'bloques': [
             resumir('bilstm_pre_attention', filas_pre,
                     'Salida del BiLSTM por ventana, antes de la atencion. Solo ventanas validas.'),
@@ -420,13 +479,18 @@ def main():
     if todas:
         resumen['bloques'].append(resumir(
             'cnn2d_todas_las_columnas', todas,
-            'Las 12 columnas sin enmascarar. SOLO para reproducir la v1 y mostrar el sesgo: '
+            'Las 12 columnas sin enmascarar. SOLO para mostrar el sesgo: '
             'la mayoria de las columnas corresponden a relleno y no a eventos reales.'))
     if maskd:
         resumen['bloques'].append(resumir(
             'cnn2d_enmascarada', maskd,
-            'Solo columnas cuyo campo receptivo (paso %d, extension %d) toca eventos reales.'
-            % (CNN_STRIDE, CNN_RECEPTIVE)))
+            'Solo columnas cuyo campo receptivo real (paso 8, campo receptivo 38: [8c-15, 8c+22] '
+            'recortado a 0-99) toca algun evento real.'))
+    if maskd_v2:
+        resumen['bloques'].append(resumir(
+            'cnn2d_enmascarada_criterio_aproximado', maskd_v2,
+            'SENSIBILIDAD: criterio [8c, 8c+22) (campo aproximado; no es el real). '
+            'Columna valida si 8c < n_eventos.'))
     if match:
         resumen['bloques'].append(resumir(
             'cnn2d_igualada_n%d' % n_match, match,
@@ -449,7 +513,7 @@ def main():
         'cond_median_despues': b.get('cond_median'),
     }
 
-    with open(OUTPUT_DIR / 'resumen_colinealidad_v2.json', 'w', encoding='utf-8') as f:
+    with open(OUTPUT_DIR / 'resumen_colinealidad.json', 'w', encoding='utf-8') as f:
         json.dump(resumen, f, indent=2, ensure_ascii=False)
 
     import csv as _csv
@@ -472,7 +536,7 @@ def main():
            OUTPUT_DIR / "colinealidad_v2.png")
 
     print("\n" + "=" * 74)
-    print("CONTROL INTERNO del BiLSTM (debe reproducir la v1)")
+    print("CONTROL INTERNO del BiLSTM")
     print("=" * 74)
     ci = resumen['control_interno']
     print("  pacientes %d, de los cuales positivos %s"

@@ -6,10 +6,11 @@ REPRODUCES IN THE THESIS
     Rep-MPC column of Table tab:rep_da_gamma.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Sensitivity_DA_T5B_V2.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
-    at the repository root for the complete list of differences.
+    unchanged; the import of the notification module was made optional, and comments
+    were edited.
+    See CHANGES-FROM-THESIS.md at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
 V2 fixes config mismatch in Sims 16, 17, 18 relative to the published paper
@@ -38,7 +39,7 @@ Table 5 Sims 15-20 (CORRECTED - matching PLoS ONE paper):
 
 Output: Sensitivity_DA_T5B_V2/{Datos,Imagenes}/
 
-Runs on: Home PC (overnight)
+Runtime: overnight on a desktop workstation
 Usage: python Sensitivity_DA_T5B_V2.py [--test] [--sims 16,17,18]
 
 Based on: Sensitivity_DA_T5B.py (V1)
@@ -72,7 +73,17 @@ import os
 import csv
 import math
 
-from telegram_notifier import MPCNotifier
+# Optional notifications: telegram_notifier.py is not distributed with this repository.
+# Without it every notifier call is a no-op and nothing else changes.
+try:
+    from telegram_notifier import MPCNotifier
+except ImportError:
+    class MPCNotifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
 
 # Force unbuffered output
 print = lambda *args, **kwargs: __builtins__.__dict__['print'](*args, **{**kwargs, 'flush': True})

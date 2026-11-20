@@ -2,13 +2,14 @@
 W2 con REFERENCIAS ALTERNATIVAS: por que la atribucion temporal sale igual para
 
 REPRODUCES IN THE THESIS
-    Why the temporal attribution is nearly identical across patients, and whether an
-    alternative reference changes it. Section 4.9 and the limitations.
+    Analysis from the model-development stage, on the earlier CNN-2D model: why the
+    temporal (W2) attribution is nearly identical across patients, and whether an
+    alternative reference changes it. Not part of the final pipeline.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults, and comments were edited. See
+    CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 todos los pacientes, y si eso se puede arreglar.
@@ -72,16 +73,15 @@ En cualquiera de los dos casos el resultado se reporta como salga.
 
 DONDE SE EJECUTA
 ----------------
-PC de casa. Necesita el checkpoint y los datos V4 de D:. No modifica nada:
-escribe en `XAI_Model/w2_referencias_results/`.
+Necesita el checkpoint y los datos de la CNN-2D (rutas relativas bajo ./batches, abajo).
+No modifica nada: escribe en `w2_referencias_results/` junto al script.
 
 USO
 ---
-    cd /d "G:\\Mi unidad\\Doctorado\\Proyecto_CC\\Test\\Book\\XAI_Model"
-    D:\\venv_torch_cu121\\Scripts\\python.exe w2_referencias_alternativas.py
+    python w2_referencias_alternativas.py
 
     # mas rapido, con menos pacientes:
-    D:\\venv_torch_cu121\\Scripts\\python.exe w2_referencias_alternativas.py --n 100
+    python w2_referencias_alternativas.py --n 100
 
 AVISO DE COSTE
 --------------
@@ -90,8 +90,6 @@ referencia (3), que es individual, hay que rehacerlo para cada paciente. Con
 --n 100 son unos pocos minutos en GPU; con 500 puede pasar de media hora.
 Empezar con --n 100.
 
-Autor: Johan Pena-Campos. Cap. 4, articulo AIM.
-Fecha: 2026-08-27
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -107,6 +105,9 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 import argparse
 import json
 import sys
@@ -118,11 +119,13 @@ import numpy as np
 import h5py
 import torch
 
+# Modulos hermanos del repositorio
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "models"))
 
-CNN_MODEL_DIR = Path(r"D:\Proyecto_CC_Batches\Modelos_CNN2D_V4_PyTorch")
+CNN_MODEL_DIR = Path("./batches/Modelos_CNN2D_V4_PyTorch")
 CNN_MODEL_GLOB = "modelo_cnn2d_v4_pytorch_*_best.pt"
-CNN_DATA_DIR = Path(r"D:\Proyecto_CC_Batches\Datos_Modelo_V4")
+CNN_DATA_DIR = Path("./batches/Datos_Modelo_V4")
 CNN_DATA_GLOB = "datos_modelo_test_v4_*.h5"
 OUTPUT_DIR = Path(__file__).parent / "w2_referencias_results"
 

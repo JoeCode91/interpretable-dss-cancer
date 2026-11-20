@@ -5,9 +5,9 @@ REPRODUCES IN THE THESIS
     Weight-matched LV-MPC baseline. Addresses reviewer point R1-5; result pending at the time of writing.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Baseline_LVMPC_DA_Matched.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
+    unchanged; comments were edited. See CHANGES-FROM-THESIS.md
     at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
@@ -65,9 +65,7 @@ QUE CAMBIA RESPECTO A Baseline_LVMPC_DA_Rerun.py
 
     Para reproducir el baseline original sin emparejar, pasar --original.
 
-USO (en cratos, tras entrar por ssh)
-    conda activate BD_Doc
-    cd ~/Code/Replicator
+USO (desde la carpeta del script, con un entorno que tenga casadi)
     nohup python -u Baseline_LVMPC_DA_Matched.py --exp 19 > logs_base/exp19_matched.log 2>&1 &
 
     --exp N       experimento, 15..19 (por defecto 19, el de la Tabla 3)
@@ -93,8 +91,9 @@ AUTHORSHIP
     Universidad Javeriana, 2026.
 
 USE OF AI ASSISTANCE
-    This file was drafted with generative AI (Claude, Anthropic) and then reviewed,
-    corrected and validated by the author, who takes full responsibility for it. The
+    This file was written with the assistance of generative AI (Claude, Anthropic),
+    to the author's specification, and reviewed, corrected and validated by the
+    author, who takes full responsibility for it. The
     research question this script answers, and the interpretation of what it returns,
     are the author's.
 """

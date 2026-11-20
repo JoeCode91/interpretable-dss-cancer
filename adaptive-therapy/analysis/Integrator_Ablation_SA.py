@@ -6,9 +6,9 @@ REPRODUCES IN THE THESIS
     difference the integrator explains, Section 6.4.3.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is
+    unchanged; comments were edited. See CHANGES-FROM-THESIS.md at the repository
+    root.
 
 --------------------------------------------------------------------------
 PURPOSE
@@ -34,11 +34,9 @@ METHOD
     as in the sweeps; only the internal predictor changes.
 
 USAGE
-    Run from the directory that holds Sensitivity_SA_V3.py (on cratos that is
-    ~/Code/Replicator), with the conda environment active:
+    Run from the directory that holds Sensitivity_SA_V3.py, with an environment
+    that provides casadi active:
 
-        conda activate BD_Doc
-        cd ~/Code/Replicator
         bash lanzar_ablation.sh          # one process per Hp, in parallel
 
     Or a single Hp by hand:

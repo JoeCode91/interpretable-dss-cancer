@@ -1,29 +1,27 @@
 """
-Sensitivity_DA_T5A_Sim11_Fix.py - Re-run Sim11 with CORRECT Bw=1
+Sensitivity_DA_T5A_Sim11_Fix.py - Sim11 of the T5A sweep with Bw=1 (no blocking)
 
 REPRODUCES IN THE THESIS
     Dual-agent EMO-Opt sweep, simulation 11: contributes to Table tab:rep_da_full.
-    Corrects the original T5A run, which used B_w=50 for simulation 11 where the
-    scenario specifies no blocking (B_w = 1).
+    Simulation 11 is run with B_w = 1 (no move blocking), as the scenario specifies.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis
+    Taken from the working tree of the thesis
     (Modelos_Replicator/Codigos/Sensitivity_DA_T5A_Sim11_Fix.py). The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md
-    at the repository root for the complete list of differences.
+    unchanged; the import of the notification module was made optional, and comments
+    were edited.
+    See CHANGES-FROM-THESIS.md at the repository root for the complete list of differences.
 
 --------------------------------------------------------------------------
-Fix: Original T5A had Sim11 with Bw=50 (bug), should be Bw=1 (no blocking).
-Ref: PLoS ONE paper tab:Exp_Art2_P2, SS11 has no Bw specified = Bw=1.
+Sim 11 uses Bw=1 (no blocking): in the PLoS ONE paper (tab:Exp_Art2_P2) SS11
+specifies no blocking width, which means Bw=1.
 
 Sim 11: gamma=(2.5e-9, 0.3, 0.45), Hp=[20,50,80,100,140], Bw=1 -> 5 configs
 
-Runs on: PC local (casa)
 Usage: python Sensitivity_DA_T5A_Sim11_Fix.py [--test]
 Output: Sensitivity_DA_T5A_Sim11_Fix/{Datos,Imagenes}/
 
-Based on: Sensitivity_DA_T5A.py (with Bw=1 correction)
-Date: 2026-03-25
+Same model and solver as the rest of the T5A sweep (Sensitivity_DA_T5A.py).
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -53,7 +51,17 @@ import os
 import csv
 import math
 
-from telegram_notifier import MPCNotifier
+# Optional notifications: telegram_notifier.py is not distributed with this repository.
+# Without it every notifier call is a no-op and nothing else changes.
+try:
+    from telegram_notifier import MPCNotifier
+except ImportError:
+    class MPCNotifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: False
 
 # Force unbuffered output
 print = lambda *args, **kwargs: __builtins__.__dict__['print'](*args, **{**kwargs, 'flush': True})
@@ -63,7 +71,7 @@ def DM2Arr(dm):
 
 
 # ================================================================
-# CONFIGURATION - Sim 11 FIXED (Bw=1, not Bw=50)
+# CONFIGURATION - Sim 11 (Bw=1, no blocking)
 # ================================================================
 
 OUTPUT_DIR = "Sensitivity_DA_T5A_Sim11_Fix"
@@ -92,14 +100,14 @@ FSIZE = 14
 # Weight scaling
 SCALE = (N_max / 1e4)**2  # = 64
 
-# --- Sim 11 configs: Hp sweep, Bw=1 (FIXED) ---
+# --- Sim 11 configs: Hp sweep, Bw=1 ---
 GAMMA_1 = 2.5e-9
 GAMMA_2 = 0.3
 GAMMA_3 = 0.45
 
 CONFIGS = []
 for hp in [20, 50, 80, 100, 140]:
-    CONFIGS.append({'sim': 11, 'Hp': hp, 'Bw': 1,  # <<< FIX: was 50, now 1
+    CONFIGS.append({'sim': 11, 'Hp': hp, 'Bw': 1,  # no blocking
                     'gamma_1': GAMMA_1, 'gamma_2': GAMMA_2, 'gamma_3': GAMMA_3})
 
 # Add derived fields
@@ -471,7 +479,7 @@ if __name__ == "__main__":
 
         n_total_configs = len(configs)
         print("=" * 60)
-        print("  SIM11 FIX: Bw=1 (was Bw=50 in original T5A)")
+        print("  SIM11: Bw=1 (no blocking)")
         print("=" * 60)
         print(f"  Output: {OUTPUT_DIR}/")
         print(f"  Total configs: {n_total_configs}")
@@ -487,11 +495,11 @@ if __name__ == "__main__":
         print("      Estimated: hours per config (ref: LV SS13 Bw=1 Hp=100 = 81,427s)")
         print()
 
-        notifier.notify_start("Sim11 Fix (Bw=1)", {
+        notifier.notify_start("Sim11 (Bw=1)", {
             "Total configs": n_total_configs,
             "Hs": Hs, "dt": dt, "N_max": f"{N_max:.0e}",
             "gamma": f"({GAMMA_1:.1e}, {GAMMA_2}, {GAMMA_3})",
-            "Bw": 1, "Fix": "was Bw=50",
+            "Bw": 1,
             "Test mode": TEST_MODE,
         })
 
@@ -640,13 +648,13 @@ if __name__ == "__main__":
 
         # Final Summary
         print(f"\n{'='*60}")
-        print(f"  SIM11 FIX COMPLETE (Bw=1)")
+        print(f"  SIM11 COMPLETE (Bw=1)")
         print(f"{'='*60}")
         print(f"  Completed: {n_completed} | Skipped: {n_skipped} | Errors: {n_errors}")
         print(f"  Total time: {t_total:.1f}s ({t_total/60:.1f} min)")
         print(f"  Output: {OUTPUT_DIR}/")
 
-        notifier.notify_complete("Sim11 Fix (Bw=1)", t_total, {
+        notifier.notify_complete("Sim11 (Bw=1)", t_total, {
             "Completed": n_completed,
             "Skipped": n_skipped,
             "Errors": n_errors,

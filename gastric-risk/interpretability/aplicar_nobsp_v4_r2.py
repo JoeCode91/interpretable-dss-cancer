@@ -1,29 +1,46 @@
 """
-R2 -- NObSP sobre TRAIN + TEST (solicitud S2 de Alex): "estas curvas las puedes
+R2 -- NObSP sobre TRAIN + TEST (muestra B): que aprendio el modelo, no solo que generaliza.
 
 REPRODUCES IN THE THESIS
     NObSP over train and test together, Section 4.9: what the model learned, not only
     what it generalises.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
-sacar con training tambien... es ver que aprendio el modelo".
 
-Reutiliza los wrappers y run_nobsp de aplicar_nobsp_v4.py (sin tocarlo). Construye
-un conjunto de calibracion BALANCEADO ~50/50: TODOS los casos de cancer de
-train+test (~867) + igual numero de no-cancer muestreados (seed 42). Corre los 4
-wrappers (W1-W4) y guarda el INDICE EXACTO del conjunto (`calib_index.npz`) para
-que R1/R3/R4 se re-corran sobre las mismas muestras en el mismo orden.
+Reutiliza los wrappers y run_nobsp de aplicar_nobsp_v4.py. Construye un conjunto de
+calibracion BALANCEADO 50/50 (muestra B): TODOS los casos de cancer de train (100:1)
++ test (867) + igual numero de no-cancer de train+test muestreados con
+RandomState(42), barajado. Corre los 4 wrappers (W1-W4) y guarda el INDICE EXACTO
+del conjunto (`calib_index.npz`) para que la reconstruccion, el mapa, la
+decodificacion de diagnosticos y la colinealidad se calculen sobre las mismas
+muestras en el mismo orden.
 
-Salidas en nobsp_results_v4_traintest/:
+W1 usa los datos reales de la muestra; W2-W4 usan 500 sondas multiplicativas
+U[0.5, 1.5] alrededor de la MEDIA de la muestra.
+
+La CNN se entrena con el submuestreo 20:1 del train; la muestra B toma sus no
+cancer del train 100:1 y del test, de modo que parte de ellos no se vio en el
+entrenamiento. `calib_index.npz` lleva por fila `en_20a1` para estratificar.
+
+Los ficheros de datos salen del config del modelo fijado con CNN2D_TS (test) y del
+atributo stage2_src de su train 20:1 (train 100:1 de origen).
+
+Salidas en NOBSP_RUNB_DIR (por defecto ./batches/Resultados/nobsp_runB_traintest):
     {demo,input_event,pre_pool,post_pool}_explainer.npz  + importancias + plots
-    calib_index.npz   (split, row, y -- el conjunto exacto usado, en orden)
+    calib_index.npz   (split, row, y, en_20a1 -- el conjunto exacto usado, en orden)
+    calib_ids.npy     (ID de paciente de cada fila)
+    muestra.json      (definicion de la muestra, ficheros y checkpoint con SHA-256)
 
-Ejecutar (GPU, ~4-5 h por el wrapper W2):
+Opcional: NOBSP_CALIB_REF apunta a un calib_index.npz de referencia; si existe, se
+informa si la muestra coincide con el (mismas filas, mismo orden).
+
+Ejecutar (GPU, ~1.5-5 h por el wrapper W2):
     python -u aplicar_nobsp_v4_r2.py
 
 AUTHORSHIP
@@ -44,9 +61,9 @@ USE OF AI ASSISTANCE
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
 # datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 
-
 import glob
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -55,9 +72,16 @@ import h5py
 import torch
 import torch.nn.functional as F
 
-import aplicar_nobsp_v4 as base   # reutiliza wrappers, run_nobsp, plots, scalers
+# Modulos hermanos del repositorio
+_HERE = Path(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "models", _HERE.parent / "training"):
+    sys.path.insert(0, str(_d))
 
-OUTPUT_DIR = Path(r".\nobsp_results_v4_traintest")
+import aplicar_nobsp_v4 as base   # wrappers, run_nobsp, plots, scalers
+
+OUTPUT_DIR = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
+# Indice de referencia opcional, para comprobar que la muestra es la misma (si no existe, se omite)
+CALIB_V4 = Path(os.environ.get('NOBSP_CALIB_REF', "./nobsp_reference/calib_index.npz"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 SEED = 42
 BERT2 = 2 * 768
@@ -69,9 +93,11 @@ N_PERTURB = int(os.environ.get('R2_N_PERTURB', '500'))   # bajar a 300 si W2 da 
 
 
 def split_files():
-    tr = sorted(glob.glob(str(base.V4_DATA_DIR / "datos_modelo_train_v4_*.h5")))[-1]
-    te = sorted(glob.glob(str(base.V4_DATA_DIR / "datos_modelo_test_v4_*.h5")))[-1]
-    return tr, te
+    # Los ficheros salen del config del modelo fijado por CNN2D_TS (test) y del atributo
+    # stage2_src de su train 20:1 (train 100:1 de origen), no de "el mas reciente"
+    import checkpoint_utils as ck
+    d = ck.datos_cnn()
+    return str(d['train']), str(d['test'])
 
 
 def build_balanced_index():
@@ -123,13 +149,48 @@ def gather(idx):
 
 def main():
     t0 = time.time()
-    notifier = base.MPCNotifier(enabled=True)
     print(f"Salida: {OUTPUT_DIR}", flush=True)
 
     # 1. Conjunto balanceado + guardar indice
     idx, y = build_balanced_index()
     np.savez(OUTPUT_DIR / "calib_index.npz", index=idx, y=y, seed=SEED)
     print(f"  indice guardado en calib_index.npz", flush=True)
+    # Comparacion opcional con un indice de referencia (mismas filas, mismo orden) + IDs
+    import json as _json
+    misma = None
+    if CALIB_V4.exists():
+        old = np.load(CALIB_V4)
+        misma = bool(np.array_equal(old['index'], idx) and np.array_equal(old['y'], y))
+        print(f"  indice identico al de referencia ({CALIB_V4}): {misma}", flush=True)
+    tr_, te_ = split_files()
+    ids = np.zeros(len(idx), dtype=np.int64)
+    for sc, pth in ((0, tr_), (1, te_)):
+        with h5py.File(pth, 'r') as fh:
+            if 'ID' in fh:
+                pos = np.where(idx[:, 0] == sc)[0]
+                ids[pos] = fh['ID'][:][idx[pos, 1]]
+    np.save(OUTPUT_DIR / "calib_ids.npy", ids)
+    # Marca por fila de si el paciente esta en el 20:1 con el que se entreno la CNN
+    import checkpoint_utils as ck
+    filas20 = set(np.load(ck.datos_cnn()['filas_20a1'])['filas_train_100a1'].tolist())
+    en_20a1 = np.array([(sc == 0 and int(r) in filas20) for sc, r in idx], dtype=bool)
+    np.savez(OUTPUT_DIR / "calib_index.npz", index=idx, y=y, seed=SEED, en_20a1=en_20a1)
+    print(f"  en el 20:1 de entrenamiento: cancer {int(en_20a1[y == 1].sum())}/{int((y == 1).sum())}, "
+          f"no cancer {int(en_20a1[y == 0].sum())}/{int((y == 0).sum())}", flush=True)
+    model_pt_ = ck.cnn_pt()
+    with open(OUTPUT_DIR / "muestra.json", "w", encoding="utf-8") as fh:
+        _json.dump({"muestra": "B", "descripcion": "muestra B = conjunto balanceado train+test (867 cancer + 867 no cancer, seed 42, calib_index.npz); W2-W4 con 500 sondas alrededor de la media de esa muestra",
+                    "n": int(len(idx)), "n_cancer": int(y.sum()),
+                    "split_codes": {"0": tr_, "1": te_},
+                    "identica_a_referencia": misma,
+                    "modelo": ck.registro(model_pt_),
+                    "en_20a1": {"cancer": int(en_20a1[y == 1].sum()), "no_cancer": int(en_20a1[y == 0].sum())},
+                    "nota_20a1": "el modelo se entreno con el 20:1 (16.191); los no cancer de la muestra que "
+                                 "vienen de train pueden no haber sido vistos en entrenamiento",
+                    "salidas": ["demo_*", "input_event_*", "pre_pool_*", "post_pool_*", "recon_input_*",
+                                "recon_w3_*", "r1_geo_por_departamento.csv (Tabla S1)", "pub_w1_geo_*",
+                                "r3_*", "atribucion_individual.txt"]},
+                   fh, indent=2)
     X_events, X_demo = gather(idx)
     N = len(idx)
 
@@ -155,12 +216,9 @@ def main():
     bucket_names = [f"tb{i:02d}" for i in range(W_pool)]
     rng = np.random.RandomState(SEED)
 
-    notifier.notify_start("NObSP V4 R2 (train+test balanceado)",
-                          {'N': N, 'output': str(OUTPUT_DIR), 'device': str(base.DEVICE)})
-
     # 5. W1 demo
     wrapper_demo = base.V4DemoWrapper(model, pooled_ref).to(base.DEVICE).eval()
-    base.run_nobsp("demo", wrapper_demo, X_demo, base.FEATURE_NAMES_DEMO, OUTPUT_DIR, notifier,
+    base.run_nobsp("demo", wrapper_demo, X_demo, base.FEATURE_NAMES_DEMO, OUTPUT_DIR,
                    top_n_curves=None, x_for_plot=X_demo_real)
 
     # 6. W2 input por evento (CARO) -- N_PERTURB perturbaciones (no datos reales)
@@ -168,7 +226,7 @@ def main():
         torch.cuda.empty_cache()
     wrapper_input = base.V4InputEventWrapper(model, x_events_ref, x_demo_ref).to(base.DEVICE).eval()
     X_in = (1.0 + rng.uniform(-0.5, 0.5, size=(N_PERTURB, 100))).astype(np.float32)
-    base.run_nobsp("input_event", wrapper_input, X_in, base.EVENT_NAMES, OUTPUT_DIR, notifier,
+    base.run_nobsp("input_event", wrapper_input, X_in, base.EVENT_NAMES, OUTPUT_DIR,
                    top_n_curves=base.TOP_N_W2,
                    extra_plot_fn=lambda c, d, n: base.plot_temporal_contribution_heatmap(
                        c, d / f"{n}_temporal_heatmap.png"))
@@ -176,7 +234,7 @@ def main():
     # 7. W3 pre-pool
     wrapper_pre = base.V4PreToolWrapper(model, feat_map_ref, x_demo_ref).to(base.DEVICE).eval()
     X_pre = (1.0 + rng.uniform(-0.5, 0.5, size=(N_PERTURB, W_pool))).astype(np.float32)
-    base.run_nobsp("pre_pool", wrapper_pre, X_pre, bucket_names, OUTPUT_DIR, notifier,
+    base.run_nobsp("pre_pool", wrapper_pre, X_pre, bucket_names, OUTPUT_DIR,
                    top_n_curves=None,
                    extra_plot_fn=lambda c, d, n: base.plot_bucket_bar(
                        np.abs(c).mean(axis=(0, 2)), bucket_names, d / f"{n}_bucket_bar.png",
@@ -185,12 +243,11 @@ def main():
     # 8. W4 post-pool
     wrapper_pool = base.V4PostPoolWrapper(model, pooled_ref, x_demo_ref).to(base.DEVICE).eval()
     X_pool = (1.0 + rng.uniform(-0.5, 0.5, size=(N_PERTURB, 64))).astype(np.float32)
-    base.run_nobsp("post_pool", wrapper_pool, X_pool, base.POOL_NAMES, OUTPUT_DIR, notifier,
+    base.run_nobsp("post_pool", wrapper_pool, X_pool, base.POOL_NAMES, OUTPUT_DIR,
                    top_n_curves=base.TOP_N_W4)
 
     dt = time.time() - t0
     print(f"\nDONE R2 en {dt/60:.1f} min. Salida: {OUTPUT_DIR}", flush=True)
-    notifier.notify_complete("NObSP V4 R2", dt, kpis={'N': N}, config={'output_dir': str(OUTPUT_DIR)})
 
 
 if __name__ == "__main__":

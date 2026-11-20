@@ -1,25 +1,28 @@
 """
-Mapa coropletico NObSP W1 -- version GRADIENTE SUAVE full-pais (#13 Alex).
+Mapa coropletico NObSP W1 -- version GRADIENTE SUAVE de todo el pais.
 
 REPRODUCES IN THE THESIS
     The smooth municipal choropleth: this is the map reproduced in the thesis as
     pub_w1_geo_choropleth_smooth, Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
 Como g_lat (contribucion W1 de la latitud) es esencialmente una funcion de la
 latitud, se deriva g_lat(latitud) a partir de los puntos por departamento
-cacheados (r1_geo_por_departamento.csv: lat_c, contrib_media; monotono
+cacheados (r1_geo_por_departamento.csv: lat_c, g_lat_media; monotono
 sur(+)/norte(-)) via PCHIP, y se colorea CADA uno de los 1122 municipios por la
 latitud de su centroide. Coropleta completa, suave, sin huecos grises.
 
-NO depende de la unidad D: (usa solo lo cacheado en G:).
-Salida: nobsp_results_v4_traintest/pub_w1_geo_choropleth_smooth.{png,pdf}
+Usa solo lo ya calculado: la tabla por departamento de mapa_georreferenciado_r1.py
+(muestra B) y el shapefile municipal (lectores de mapa_georreferenciado_choropleth.py).
+No necesita los HDF5 ni el modelo.
+Salida: <OUTPUT_DIR de mapa_georreferenciado_choropleth.py>/pub_w1_geo_choropleth_smooth.{png,pdf}
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -35,6 +38,16 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import sys as _sys
+from pathlib import Path as _P
+# Modulos hermanos del repositorio
+_HERE = _P(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "training"):
+    _sys.path.insert(0, str(_d))
+
 import os
 import csv
 from pathlib import Path
@@ -68,7 +81,7 @@ def main():
     with open(DEPT_CSV, newline='', encoding='utf-8') as f:
         for row in csv.DictReader(f):
             lat_c.append(float(row['lat_c']))
-            contrib.append(float(row['contrib_media']))
+            contrib.append(float(row['g_lat_media']))   # g_lat, coherente con el titulo
     lat_c, contrib = np.array(lat_c), np.array(contrib)
     o = np.argsort(lat_c)
     lat_s, c_s = lat_c[o], contrib[o]

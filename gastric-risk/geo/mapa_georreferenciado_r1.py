@@ -1,41 +1,47 @@
 """
-R1 -- Mapa georreferenciado de la contribucion NObSP geografica (solicitud S1 de
+R1 -- Mapa georreferenciado de la contribucion NObSP geografica.
 
 REPRODUCES IN THE THESIS
-    Georeferenced NObSP geographic contribution. Produces the per-department cache that
-    the choropleth below consumes. Section 4.9.
+    Georeferenced NObSP geographic contribution. Produces the per-department table
+    (r1_geo_por_departamento.csv, Table S1 reports g_lat_media) that the choropleths
+    consume. Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
-Alex, 26 May): "mostrar en un mapa de georeferencia donde son las zonas".
 
-Combina la contribucion NObSP de latitud + longitud (W1, clase cancer) y la
-proyecta sobre un mapa de Colombia. Fondo = 1014 municipios DIVIPOLA (silueta del
-pais, sin necesidad de geopandas). Frente = los 500 pacientes de test ubicados en
-sus coordenadas reales, coloreados por su contribucion geografica; casos cancer
-resaltados.
+Muestra en un mapa de Colombia donde se situan las zonas a las que el modelo
+atribuye contribucion geografica. Toma la contribucion NObSP de latitud y de
+longitud (W1, clase cancer) y la proyecta sobre el mapa. Fondo = 1014 municipios
+DIVIPOLA (silueta del pais, sin necesidad de geopandas). Frente = los pacientes de
+la muestra B ubicados en sus coordenadas, coloreados por su contribucion
+geografica; casos cancer resaltados.
 
-Marco (post-R4/R3): la contribucion geografica puede estar confundida con la
-distribucion de casos (confound b: Bogota concentra ~53% de los canceres). Por eso
-el script tambien agrega por departamento (contribucion media + n_pacientes +
-n_cancer) para que el confound sea visible y auditable.
+La contribucion geografica puede estar confundida con la distribucion de casos
+(Bogota concentra ~53% de los canceres). Por eso el script tambien agrega por
+departamento (contribucion media + n_pacientes + n_cancer) para que el confound sea
+visible y auditable. La Tabla S1 publica g_lat_media; el CSV trae tambien
+g_lon_media y g_w_media (0.9 g_lat + 0.1 g_lon, solo como referencia).
 
-NOTA: NObSP W1 es de primer orden (g_lat y g_lon por separado); el mapa muestra la
-contribucion ADITIVA g_lat+g_lon. Una interaccion lat x lon de segundo orden
-(mencionada por Alex) requeriria un wrapper 2D distinto -> fuera de alcance, se
-declara como limitacion.
+Muestra B: todos los cancer de train (100:1) y test, y el mismo numero de no cancer
+de train+test (RandomState(42)), en el orden de calib_index.npz.
 
-Ejecutar (en este PC, venv con numpy/h5py/matplotlib):
+NOTA: NObSP W1 es de primer orden (g_lat y g_lon por separado). Una interaccion
+lat x lon de segundo orden requeriria un wrapper 2D distinto -> fuera de alcance,
+se declara como limitacion.
+
+Ejecutar (numpy/h5py/matplotlib):
     python mapa_georreferenciado_r1.py
 
-Salidas en nobsp_results_v4/:
-    pub_w1_geo_map.{png,pdf}        mapa de pacientes coloreados por contribucion geo
-    pub_w1_geo_dept.{png,pdf}       mapa por departamento (centroides)
-    r1_geo_por_departamento.csv     tabla dpto: contrib media, n_pac, n_cancer
+Salidas en NOBSP_RUNB_DIR (por defecto ./batches/Resultados/nobsp_runB_traintest):
+    pub_w1_geo_map_{lat,lon,weighted}.{png,pdf}  pacientes coloreados por contribucion
+    pub_w1_geo_dept.{png,pdf}       mapa por departamento (centroides), g_lat_media
+    r1_geo_por_departamento.csv     tabla dpto: g_lat/g_lon/g_w medias, n_pac, n_cancer
+    r1_geo_por_departamento.json    definicion de cada columna
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -54,6 +60,12 @@ USE OF AI ASSISTANCE
 # Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
 # sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
 # datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import sys as _sys
+from pathlib import Path as _P
+# Modulos hermanos del repositorio
+_HERE = _P(__file__).resolve().parent
+for _d in (_HERE, _HERE.parent / "training"):
+    _sys.path.insert(0, str(_d))
 
 
 import csv
@@ -69,9 +81,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # ---- Constantes (alineadas con generar_figuras_pub_v4.py) ----
-OUTPUT_DIR = Path(r".\nobsp_results_v4")
-V4_DATA_DIR = Path(r"./batches\Datos_Modelo_V4")
-GEOCODE = Path(r".\geocode\mapa_municipio_latlon.json")
+OUTPUT_DIR = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
+V4_DATA_DIR = Path(os.environ.get('CNN_DATA_DIR', "./batches/Datos_Modelo_CNN"))
+GEOCODE = Path(os.environ.get("GEOMAP_JSON", "./geo/mapa_municipio_latlon.json"))
 N_SAMPLES = 500
 SCALERS = {'lat': {'mean': 5.6452, 'scale': 2.2558},
            'lon': {'mean': -74.9218, 'scale': 1.0864}}
@@ -85,7 +97,7 @@ def inverse_scaler(z, key):
 
 def main():
     global OUTPUT_DIR
-    R2_DIR = os.environ.get('NOBSP_R2_DIR', '').strip()
+    R2_DIR = os.environ.get('NOBSP_R2_DIR', str(OUTPUT_DIR)).strip()   # por defecto, la muestra B
     if R2_DIR:
         OUTPUT_DIR = Path(R2_DIR)
         print(f"  [R2 train+test] leyendo de {OUTPUT_DIR}", flush=True)
@@ -103,11 +115,11 @@ def main():
 
     # 2. X_demo + etiquetas (500 test, o conjunto R2 train+test)
     if R2_DIR:
-        import r2_calib
+        import r2_calib as r2_calib
         _, X_demo, y = r2_calib.load_r2_calib(R2_DIR, str(V4_DATA_DIR), need_events=False)
         X_demo = X_demo.astype(np.float32)
     else:
-        test_files = sorted(glob.glob(str(V4_DATA_DIR / "datos_modelo_test_v4_*.h5")))
+        test_files = sorted(glob.glob(str(V4_DATA_DIR / "datos_modelo_test_cnn_*.h5")))
         with h5py.File(test_files[-1], 'r') as f:
             X_demo = f['X_demograficos'][:N_SAMPLES].astype(np.float32)
             y = f['y'][:N_SAMPLES].astype(int)
@@ -130,7 +142,7 @@ def main():
     m_lat = np.array([v['lat'] for v in divipola.values()])
     m_lon = np.array([v['lon'] for v in divipola.values()])
     m_dpto = np.array([v.get('nom_dpto', '?') for v in divipola.values()])
-    # nearest municipio para cada paciente (match ~exacto: V4 uso centroides)
+    # nearest municipio para cada paciente (match ~exacto: el builder usa centroides)
     # distancia^2 (500 x 1014) -- barato
     d2 = (lat[:, None] - m_lat[None, :]) ** 2 + (lon[:, None] - m_lon[None, :]) ** 2
     nn = d2.argmin(axis=1)
@@ -178,31 +190,46 @@ def main():
         rows.append({
             'departamento': d, 'n_pac': int(mask.sum()),
             'n_cancer': int(y[mask].sum()),
-            'contrib_media': float(gw[mask].mean()),
+            # tres magnitudes separadas; la Tabla S1 publica g_lat_media
+            'g_lat_media': float(glat[mask].mean()),
+            'g_lon_media': float(glon[mask].mean()),
+            'g_w_media': float(gw[mask].mean()),
+            'muestra': 'B',
             'lat_c': float(lat[mask].mean()), 'lon_c': float(lon[mask].mean()),
         })
-    rows.sort(key=lambda r: abs(r['contrib_media']), reverse=True)
+    rows.sort(key=lambda r: abs(r['g_lat_media']), reverse=True)
     with open(OUTPUT_DIR / "r1_geo_por_departamento.csv", 'w', newline='', encoding='utf-8') as fh:
-        w = csv.DictWriter(fh, fieldnames=['departamento', 'n_pac', 'n_cancer',
-                                           'contrib_media', 'lat_c', 'lon_c'])
+        w = csv.DictWriter(fh, fieldnames=['departamento', 'n_pac', 'n_cancer', 'g_lat_media',
+                                           'g_lon_media', 'g_w_media', 'lat_c', 'lon_c', 'muestra'])
         w.writeheader()
         for r in rows:
             w.writerow(r)
     print("  guardado r1_geo_por_departamento.csv")
+    with open(OUTPUT_DIR / "r1_geo_por_departamento.json", 'w', encoding='utf-8') as fh:
+        json.dump({
+            "muestra": "B (calib_index.npz: 867 cancer + 867 no cancer de train 100:1 + test)",
+            "g_lat_media": "media aritmetica por departamento, sobre los pacientes de la muestra B asignados "
+                           "por centroide municipal mas cercano, de la contribucion NObSP W1 de lat a la clase cancer",
+            "g_lon_media": "igual, para lon",
+            "g_w_media": f"igual, para {W_LAT} g_lat + {W_LON} g_lon (combinacion arbitraria; solo referencia)",
+            "tabla_S1_publica": "g_lat_media",
+            "lat_c/lon_c": "media de las coordenadas de los pacientes del departamento (no el centroide oficial)",
+            "n_pac/n_cancer": "pacientes de la muestra B en el departamento (cancer y no cancer juntos)"},
+            fh, indent=2, ensure_ascii=False)
 
-    cmax2 = max(abs(r['contrib_media']) for r in rows) or 1.0
+    cmax2 = max(abs(r['g_lat_media']) for r in rows) or 1.0
     fig, ax = plt.subplots(figsize=(8, 9))
     ax.scatter(m_lon, m_lat, s=3, c='#eeeeee', zorder=1, rasterized=True)
     for r in rows:
         ax.scatter(r['lon_c'], r['lat_c'], s=30 + 18 * r['n_pac'] ** 0.5,
-                   c=[r['contrib_media']], cmap='RdBu_r', vmin=-cmax2, vmax=cmax2,
+                   c=[r['g_lat_media']], cmap='RdBu_r', vmin=-cmax2, vmax=cmax2,
                    edgecolors='black', linewidths=0.8, zorder=2)
         if r['n_cancer'] > 0:
             ax.text(r['lon_c'], r['lat_c'] + 0.18, f"{r['departamento'][:10]}\n({r['n_cancer']} ca)",
                     fontsize=6.5, ha='center', va='bottom', zorder=4)
     ax.set_xlabel('Longitude (degrees W)')
     ax.set_ylabel('Latitude (degrees N)')
-    ax.set_title('Mean geographic NObSP contribution by department\n(size = n patients; labeled = has cancer cases)')
+    ax.set_title('Mean latitude NObSP contribution g_lat by department\n(size = n patients; labeled = has cancer cases)')
     ax.set_aspect('equal', adjustable='box')
     fig.tight_layout()
     for ext in ('png', 'pdf'):
@@ -210,14 +237,15 @@ def main():
     plt.close(fig)
     print("  guardado pub_w1_geo_dept.png/.pdf")
 
-    # 7. Resumen consola (para auditar el confound b)
+    # 7. Resumen consola (para auditar el confound geografico)
     print("\n=== TOP departamentos por |contribucion media| ===")
-    print(f"{'depto':22s} {'n_pac':>5s} {'n_ca':>4s} {'contrib':>9s}")
+    print(f"{'depto':22s} {'n_pac':>5s} {'n_ca':>4s} {'g_lat':>9s} {'g_lon':>9s} {'g_w':>9s}")
     for r in rows[:12]:
-        print(f"  {r['departamento'][:20]:20s} {r['n_pac']:5d} {r['n_cancer']:4d} {r['contrib_media']:9.4f}")
+        print(f"  {r['departamento'][:20]:20s} {r['n_pac']:5d} {r['n_cancer']:4d} {r['g_lat_media']:9.4f} "
+              f"{r['g_lon_media']:9.4f} {r['g_w_media']:9.4f}")
     n_dpto_cancer = sum(1 for r in rows if r['n_cancer'] > 0)
-    print(f"\nDepartamentos con >=1 cancer en test: {n_dpto_cancer} de {len(rows)}")
-    print("(Confound b: si los canceres se concentran en pocos departamentos, la")
+    print(f"\nDepartamentos con >=1 cancer en la muestra B: {n_dpto_cancer} de {len(rows)}")
+    print("(Confound: si los canceres se concentran en pocos departamentos, la")
     print(" contribucion geografica refleja esa distribucion, no causalidad espacial.)")
 
 

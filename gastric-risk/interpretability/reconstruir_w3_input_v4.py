@@ -1,13 +1,14 @@
 """
-W3 input-space reconstruction + comparison with W4 (correccion #25, Cap. 4).
+W3 input-space reconstruction and comparison with W4.
 
 REPRODUCES IN THE THESIS
     Input-space reconstruction of W3 and its comparison with W4, Section 4.9.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree that produced the reported results. The computational
+    content is unchanged; absolute paths were replaced by relative defaults and
+    environment variables, notification calls were removed, and comments were edited.
+    See CHANGES-FROM-THESIS.md at the repository root.
 
 --------------------------------------------------------------------------
 
@@ -22,8 +23,12 @@ Esto permite comparar la localizacion temporal recuperada por pre-pool (W3) y
 post-pool (W4): si ambas siguen el mismo perfil (y este sigue la ocupacion),
 refuerza que la localizacion temporal es un confound de longitud de historia.
 
+Muestra B: todos los cancer de train (100:1) y test, y el mismo numero de no cancer
+de train+test (RandomState(42)); W2-W4 con 500 sondas multiplicativas alrededor de
+la media de esa muestra.
+
 Ligero: trabaja sobre los .npz ya generados (sin GPU, sin modelo).
-Salidas en nobsp_results_v4_traintest/:
+Salidas en NOBSP_RUNB_DIR (por defecto ./batches/Resultados/nobsp_runB_traintest):
   - recon_w3_input_profile.npz          perfil W3 (12 -> 100) + W4
   - recon_w3_vs_w4_profile.{png,pdf}    overlay comparativo
 
@@ -41,13 +46,17 @@ USE OF AI ASSISTANCE
     author's. Every suggestion was reviewed by the author, who takes full responsibility
     for the content of this file.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
+import os
 from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-D = Path(r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model\nobsp_results_v4_traintest")
+D = Path(os.environ.get('NOBSP_RUNB_DIR', "./batches/Resultados/nobsp_runB_traintest"))
 N_EVENTS = 100
 
 
@@ -60,6 +69,9 @@ def cancer_idx(class_names):
     return len(names) - 1
 
 
+# El reescalado 12 -> 100 usa centros de celda (8,33c + 4,2), mientras que el centro del
+# campo receptivo de la columna c de conv4 es 8c + 3,5: desfase de hasta 3,7 eventos en
+# c = 11. Es menor, pero conviene tenerlo presente si se citan posiciones finas.
 def upsample_1d(v, n):
     """Lineal de len(v) -> n con centros de celda (analogo a bilinear align_corners=False)."""
     x_old = (np.arange(len(v)) + 0.5) / len(v)

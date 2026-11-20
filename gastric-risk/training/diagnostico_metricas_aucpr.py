@@ -2,12 +2,15 @@
 diagnostico_metricas_aucpr.py
 
 REPRODUCES IN THE THESIS
-    Diagnoses the discrepancy that motivated the recomputation above.
+    Analysis from the model-development stage: compares AUC-PR computed by trapezoidal
+    interpolation with average precision, and estimates the width of bootstrap intervals
+    with 96 positives. It is why AUC-PR is computed as average precision in
+    recalculo_aucpr_final.py. Not part of the final pipeline.
 
 PROVENANCE
-    Copied verbatim from the working tree of the thesis. The computational content is
-    unchanged; only this provenance block was added. See CHANGES-FROM-THESIS.md at the
-    repository root.
+    Taken from the working tree of the thesis. The computational content is unchanged;
+    absolute paths were replaced by relative defaults, and comments were edited. See
+    CHANGES-FROM-THESIS.md at the repository root.
 
 AUTHORSHIP
     Johan S. Pena-Campos
@@ -37,10 +40,12 @@ Diagnostico de las metricas del Cap. 4, con numpy puro (este PC no tiene sklearn
 (2) Anchura de los intervalos de confianza con 96 positivos, por bootstrap
     estratificado.
 """
+# Las rutas de este fichero eran absolutas en el arbol de trabajo del autor y se han
+# sustituido por rutas relativas. Ajustalas a tu entorno antes de ejecutar: apuntan a
+# datos y modelos que este repositorio no distribuye (ver el README de gastric-risk).
 import numpy as np
 
-NPZ = (r"G:\Mi unidad\Doctorado\Proyecto_CC\Test\Book\XAI_Model"
-       r"\threshold_sweep_results\probas_test.npz")
+NPZ = "./batches/Resultados/threshold_sweep_results/probas_test.npz"
 RNG = np.random.default_rng(20260827)
 B = 2000
 
